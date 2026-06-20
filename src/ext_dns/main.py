@@ -38,8 +38,19 @@ async def _main() -> None:
     config = load_config()
     providers = load_providers(config.plugins)
     reconciler = Reconciler(providers, interval=config.interval)
-    watcher = DockerWatcher(on_state_change=reconciler.trigger_reconcile)
+
+    traefik_cfg: dict[str, dict] = {}
+    for plugin_name, pcfg in config.plugins.items():
+        t = pcfg.get("traefik") if isinstance(pcfg, dict) else None
+        if isinstance(t, dict) and t.get("enabled"):
+            traefik_cfg[plugin_name] = {"hostname": t.get("hostname")}
+
+    watcher = DockerWatcher(
+        on_state_change=reconciler.trigger_reconcile, traefik=traefik_cfg
+    )
     reconciler.set_watcher(watcher)
+    if traefik_cfg:
+        log.info("Traefik integration enabled for plugins: %s", list(traefik_cfg))
 
     app = build_app(reconciler, config)
     server_config = uvicorn.Config(

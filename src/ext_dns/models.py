@@ -10,6 +10,11 @@ class RecordType(str, Enum):
     CNAME = "CNAME"
 
 
+class RecordSource(str, Enum):
+    EXT_DNS = "ext-dns"
+    TRAEFIK = "traefik"
+
+
 class DNSVerificationStatus(str, Enum):
     PENDING = "pending"
     CHECKING = "checking"
@@ -23,6 +28,7 @@ class DNSRecord(BaseModel):
     hostname: str
     record_type: RecordType
     value: str
+    source: RecordSource = RecordSource.EXT_DNS
 
 
 class ContainerRecord(BaseModel):
@@ -32,6 +38,7 @@ class ContainerRecord(BaseModel):
     hostname: str
     record_type: RecordType
     value: str
+    source: RecordSource = RecordSource.EXT_DNS
     last_updated: datetime
     dns_status: DNSVerificationStatus = DNSVerificationStatus.PENDING
     dns_checked_at: Optional[datetime] = None
@@ -43,7 +50,7 @@ class InstanceStatus(BaseModel):
     record_count: int
     providers: list[str]
     last_reconcile: Optional[datetime]
-    version: str = "0.1.8"
+    version: str = "0.2.0"
 
 
 class RemoteInstanceInfo(BaseModel):

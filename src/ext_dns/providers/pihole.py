@@ -172,8 +172,33 @@ class PiholeProvider(DNSProvider):
 
         return records
 
+    async def _purge_name(
+        self, hostname: str, records: list[DNSRecord] | None = None
+    ) -> None:
+        """Delete every existing record for `hostname` — both A (dns/hosts) and
+        CNAME (dns/cnameRecords). docker-ext-dns is the source of truth for the
+        names it manages, so a name is fully cleared before a record is (re)created.
+        This also prevents a stale A/CNAME lingering when a record changes type."""
+        if records is None:
+            records = await self.list_records()
+        for r in records:
+            if r.hostname != hostname:
+                continue
+            if r.record_type == RecordType.A:
+                element = _HOSTS_ELEMENT
+                value_str = urllib.parse.quote(f"{r.value} {hostname}", safe="")
+            else:
+                element = _CNAME_ELEMENT
+                value_str = urllib.parse.quote(f"{hostname},{r.value}", safe="")
+            path = f"/api/config/{element}/{value_str}"
+            log.debug("Pi-hole purge DELETE %s", path)
+            resp = await self._request("DELETE", path, params={"restart": "false"})
+            if resp.status_code not in (204, 404):
+                resp.raise_for_status()
+
     async def create_record(self, record: DNSRecord) -> None:
         await self._ensure_auth()
+        await self._purge_name(record.hostname)
         element, value_str = self._encode(record)
         path = f"/api/config/{element}/{value_str}"
         log.debug("Pi-hole PUT %s (type=%s value=%s)", path, record.record_type, record.value)
@@ -186,7 +211,8 @@ class PiholeProvider(DNSProvider):
                 resp.raise_for_status()
 
     async def update_record(self, record: DNSRecord) -> None:
-        await self.delete_record(record.hostname, record.record_type)
+        # create_record purges any existing record of this name first (both
+        # elements), so it correctly handles value changes and A<->CNAME flips.
         await self.create_record(record)
 
     async def delete_record(self, hostname: str, record_type: str) -> None:

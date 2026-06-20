@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0
+
+### Added
+- **Traefik integration** — when enabled per plugin (`plugins.<name>.traefik.enabled: true`), docker-ext-dns reads Traefik router labels (`traefik.http.routers.<router>.rule`) and creates a CNAME record for every hostname in each `Host(`...`)` expression, pointing at the Traefik host. The target is taken from `traefik.hostname` or auto-discovered from the first `Host()` rule on a container whose name contains `traefik`. `ext-dns.*` labels take precedence for the same hostname, and a container can opt out with `ext-dns.<plugin>.traefik: "false"`
+- **Record source indicator** — each record now carries its origin (`ext-dns` or `traefik`), exposed on the API and shown as a badge column in the web UI
+
+### Changed
+- **Source-of-truth record creation** — creating a record now first deletes any existing record of the same name in *both* Pi-hole config elements (`dns/hosts` and `dns/cnameRecords`) before writing. This guarantees the app owns its managed names and fixes a bug where changing a record's type (A↔CNAME) left the old record behind, leaving Pi-hole with a conflicting A *and* CNAME for one name
+
 ## 0.1.9
 
 ### Fixed

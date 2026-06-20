@@ -64,16 +64,17 @@ class Reconciler:
         # Build desired set: (plugin, hostname) -> (DNSRecord, container_id, container_name)
         desired_records: dict[tuple[str, str], tuple[DNSRecord, str, str]] = {}
         for container_id, (container_name, _short_id, plugin_records) in desired.items():
-            for plugin_name, record in plugin_records.items():
+            for plugin_name, records in plugin_records.items():
                 if plugin_name not in self._providers:
                     log.warning(
                         "Container '%s' references unconfigured plugin '%s', skipping",
                         container_name, plugin_name,
                     )
                     continue
-                desired_records[(plugin_name, record.hostname)] = (
-                    record, container_id, container_name,
-                )
+                for record in records:
+                    desired_records[(plugin_name, record.hostname)] = (
+                        record, container_id, container_name,
+                    )
 
         # Build actual set per provider
         actual_records: dict[tuple[str, str], DNSRecord] = {}
@@ -173,6 +174,7 @@ class Reconciler:
                 hostname=record.hostname,
                 record_type=record.record_type,
                 value=record.value,
+                source=record.source,
                 last_updated=_utcnow(),
             )
         else:
@@ -180,6 +182,7 @@ class Reconciler:
             existing.container_name = container_name
             existing.value = record.value
             existing.record_type = record.record_type
+            existing.source = record.source
 
     async def _do_create(
         self,

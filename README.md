@@ -8,9 +8,11 @@ Watches running containers, reads `ext-dns.*` labels, and automatically creates,
 
 - Reacts to Docker container start/stop events in real time
 - Supports A records (container IP) and CNAME records
+- **Traefik integration** — reads Traefik router labels and creates CNAMEs to your Traefik host automatically
 - Modular provider system — add new DNS backends by implementing one interface
 - DNS verification: checks whether each record actually resolves after creation
-- Web UI with multi-instance aggregation
+- Source of truth: a managed name is fully replaced on create (any conflicting A/CNAME of the same name is removed first)
+- Web UI with multi-instance aggregation and a per-record source badge (ext-dns / traefik)
 
 ## Quick Start
 
@@ -51,8 +53,35 @@ services:
 | `ext-dns.<plugin>.type` | yes | `A` or `CNAME` |
 | `ext-dns.<plugin>.target` | CNAME only | CNAME target value |
 | `ext-dns.<plugin>.network` | no | Docker network to read IP from (A records) |
+| `ext-dns.<plugin>.traefik` | no | Set to `false` to opt a container out of Traefik integration for this plugin |
 
 Multiple plugins per container are supported.
+
+## Traefik integration
+
+When enabled per plugin (see Configuration), docker-ext-dns also reads Traefik
+router labels and creates a **CNAME** record for each routed hostname, pointing
+at your Traefik host. No `ext-dns.*` labels are needed for these — just your
+existing Traefik labels:
+
+```yaml
+my-app:
+  image: nginx:alpine
+  labels:
+    traefik.http.routers.my-app.rule: Host(`app.lan`)
+    # → CNAME app.lan -> <traefik hostname>
+```
+
+- Every hostname inside `Host(`...`)` is extracted, including `Host(`a`, `b`)`
+  and `Host(`a`) || Host(`b`)` forms.
+- The CNAME target is the per-plugin `traefik.hostname` from config, or — if
+  omitted — auto-discovered from the first `Host(`...`)` rule on a container
+  whose name contains `traefik`.
+- `ext-dns.*` labels take precedence: if a container defines an `ext-dns` record
+  for the same hostname, the Traefik CNAME for that hostname is skipped.
+- Opt a container out with `ext-dns.<plugin>.traefik: "false"`.
+- The `traefik.docker.network` label is parsed but currently unused (CNAMEs need
+  no container IP); it is reserved for a future A-record mode.
 
 ## Configuration (`EXT_DNS_CONFIG`)
 
@@ -62,6 +91,9 @@ plugins:
   pihole:
     url: http://pihole:80
     password: secret  # omit if Pi-hole has no password
+    traefik:          # optional — enable Traefik label integration for this plugin
+      enabled: true
+      hostname: traefik.lan   # optional; auto-discovered from a *traefik* container if omitted
 web:
   port: 8080
 ```

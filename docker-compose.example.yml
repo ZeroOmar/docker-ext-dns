@@ -11,6 +11,9 @@ services:
           pihole:
             url: http://pihole:80
             password: your-pihole-password
+            traefik:               # optional: create CNAMEs from Traefik router labels
+              enabled: true
+              hostname: traefik.lan # optional; auto-discovered from a *traefik* container if omitted
         web:
           port: 8080
     volumes:
@@ -33,3 +36,11 @@ services:
       ext-dns.pihole.hostname: alias.lan
       ext-dns.pihole.type: CNAME
       ext-dns.pihole.target: my-service.lan
+
+  # Example Traefik-routed service — a CNAME app.lan -> traefik.lan is created
+  # automatically from the router rule (no ext-dns labels needed).
+  my-traefik-app:
+    image: nginx:alpine
+    labels:
+      traefik.http.routers.my-traefik-app.rule: Host(`app.lan`)
+      # ext-dns.pihole.traefik: "false"   # opt this container out of Traefik integration
