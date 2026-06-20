@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>docker-ext-dns</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --accent: #3b82f6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --orange: #f97316;
+    --grey: #475569;
+    --radius: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  header h1 span { color: var(--accent); }
+
+  .header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--border); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #2563eb; }
+  button.danger { background: #7f1d1d; border-color: #991b1b; color: #fca5a5; }
+  button.danger:hover { background: #991b1b; }
+
+  .tabs {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    transition: color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab .led {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--grey); display: inline-block; flex-shrink: 0;
+  }
+  .tab .led.ok { background: var(--green); }
+  .tab .led.err { background: var(--red); }
+  .tab-add {
+    padding: 10px 10px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    display: flex; align-items: center;
+  }
+  .tab-add:hover { color: var(--text); }
+
+  main { padding: 20px; }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .toolbar select, .toolbar input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-size: 13px;
+  }
+
+  .count { color: var(--text-muted); font-size: 13px; margin-left: auto; }
+
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .badge::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    opacity: 0.8;
+  }
+  .badge.NOERROR  { background: #14532d; color: var(--green); }
+  .badge.NXDOMAIN { background: #7f1d1d; color: var(--red); }
+  .badge.MISMATCH { background: #431407; color: var(--orange); }
+  .badge.SERVFAIL { background: #451a03; color: var(--amber); }
+  .badge.checking { background: #1c1917; color: var(--amber); }
+  .badge.pending  { background: #1e293b; color: var(--grey); }
+
+  .type-badge {
+    background: #1e3a5f;
+    color: #93c5fd;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .type-badge.CNAME { background: #1e1b4b; color: #a5b4fc; }
+
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+
+  .instance-label {
+    background: var(--border);
+    color: var(--text-muted);
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .empty p { margin-top: 8px; font-size: 13px; }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .overlay.hidden { display: none; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    width: 420px;
+    max-width: 95vw;
+  }
+  .modal h2 { font-size: 15px; margin-bottom: 16px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
+  .field input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    font-size: 13px;
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+  .instance-list { margin-bottom: 16px; }
+  .instance-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 6px;
+  }
+  .instance-row .iname { font-weight: 500; flex: 1; }
+  .instance-row .iurl { color: var(--text-muted); font-size: 12px; font-family: monospace; flex: 2; }
+
+  .refresh-time { color: var(--text-muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>docker-<span>ext-dns</span></h1>
+  <span class="refresh-time" id="lastRefresh"></span>
+  <div class="header-actions">
+    <button onclick="refresh()">↻ Refresh</button>
+    <button onclick="openModal()">⊕ Instances</button>
+  </div>
+</header>
+
+<div class="tabs" id="tabs"></div>
+
+<main>
+  <div class="toolbar">
+    <select id="filterPlugin" onchange="applyFilters()">
+      <option value="">All plugins</option>
+    </select>
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="">All statuses</option>
+      <option value="NOERROR">NOERROR</option>
+      <option value="NXDOMAIN">NXDOMAIN</option>
+      <option value="MISMATCH">MISMATCH</option>
+      <option value="SERVFAIL">SERVFAIL</option>
+      <option value="checking">Checking</option>
+      <option value="pending">Pending</option>
+    </select>
+    <span class="count" id="recordCount"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Instance</th>
+          <th>Container</th>
+          <th>Plugin</th>
+          <th>Hostname</th>
+          <th>Type</th>
+          <th>Value</th>
+          <th>Last Updated</th>
+          <th>DNS Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty hidden" id="emptyState">
+      <div style="font-size:32px">🔍</div>
+      <p id="emptyMsg">No records found.</p>
+    </div>
+  </div>
+</main>
+
+<!-- Instances modal -->
+<div class="overlay hidden" id="overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>Manage Instances</h2>
+    <div class="instance-list" id="instanceList"></div>
+    <hr style="border-color: var(--border); margin-bottom:14px">
+    <div class="field"><label>Name</label><input id="newName" placeholder="home-server"></div>
+    <div class="field"><label>URL</label><input id="newUrl" placeholder="http://192.168.1.50:8080"></div>
+    <div class="modal-actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" onclick="addInstance()">Add Instance</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ext_dns_instances';
+const FETCH_TIMEOUT = 8000;
+
+let allRecords = [];
+let instanceStatuses = {};
+let activeTab = 'all';
+
+function loadInstances() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [{ name: 'local', url: window.location.origin }];
+}
+
+function saveInstances(instances) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+}
+
+function fetchWithTimeout(url, timeout) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
+async function refresh() {
+  const instances = loadInstances();
+  allRecords = [];
+  instanceStatuses = {};
+
+  const results = await Promise.allSettled(
+    instances.map(inst =>
+      fetchWithTimeout(`${inst.url}/api/records`, FETCH_TIMEOUT)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(records => {
+          instanceStatuses[inst.name] = 'ok';
+          return records.map(rec => ({ ...rec, _instance: inst.name }));
+        })
+        .catch(err => {
+          instanceStatuses[inst.name] = 'err';
+          console.warn(`Instance '${inst.name}' unreachable:`, err.message);
+          return [];
+        })
+    )
+  );
+
+  results.forEach(r => { if (r.status === 'fulfilled') allRecords.push(...r.value); });
+
+  document.getElementById('lastRefresh').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+
+  renderTabs();
+  applyFilters();
+  updatePluginFilter();
+}
+
+function renderTabs() {
+  const instances = loadInstances();
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+
+  const allTab = makeTab('all', 'All', null);
+  tabs.appendChild(allTab);
+
+  instances.forEach(inst => {
+    const status = instanceStatuses[inst.name];
+    tabs.appendChild(makeTab(inst.name, inst.name, status));
+  });
+
+  const addBtn = document.createElement('div');
+  addBtn.className = 'tab-add';
+  addBtn.title = 'Manage instances';
+  addBtn.textContent = '+';
+  addBtn.onclick = openModal;
+  tabs.appendChild(addBtn);
+}
+
+function makeTab(id, label, status) {
+  const el = document.createElement('div');
+  el.className = 'tab' + (activeTab === id ? ' active' : '');
+  el.onclick = () => { activeTab = id; renderTabs(); applyFilters(); };
+
+  const led = document.createElement('span');
+  led.className = 'led' + (status === 'ok' ? ' ok' : status === 'err' ? ' err' : '');
+  el.appendChild(led);
+  el.append(label);
+  return el;
+}
+
+function applyFilters() {
+  const pluginFilter = document.getElementById('filterPlugin').value;
+  const statusFilter = document.getElementById('filterStatus').value;
+
+  let records = allRecords;
+  if (activeTab !== 'all') records = records.filter(r => r._instance === activeTab);
+  if (pluginFilter) records = records.filter(r => r.plugin === pluginFilter);
+  if (statusFilter) records = records.filter(r => r.dns_status === statusFilter);
+
+  renderTable(records);
+  document.getElementById('recordCount').textContent =
+    records.length + ' record' + (records.length !== 1 ? 's' : '');
+}
+
+function updatePluginFilter() {
+  const plugins = [...new Set(allRecords.map(r => r.plugin))].sort();
+  const sel = document.getElementById('filterPlugin');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All plugins</option>' +
+    plugins.map(p => `<option value="${p}"${p===cur?' selected':''}>${p}</option>`).join('');
+}
+
+function renderTable(records) {
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('emptyState');
+  const emptyMsg = document.getElementById('emptyMsg');
+
+  if (records.length === 0) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    emptyMsg.textContent = allRecords.length === 0
+      ? 'No containers with ext-dns labels found.'
+      : 'No records match the current filters.';
+    return;
+  }
+
+  empty.classList.add('hidden');
+  tbody.innerHTML = records.map(r => `
+    <tr>
+      <td><span class="instance-label">${esc(r._instance)}</span></td>
+      <td>${esc(r.container_name)}</td>
+      <td>${esc(r.plugin)}</td>
+      <td class="mono">${esc(r.hostname)}</td>
+      <td><span class="type-badge ${esc(r.record_type)}">${esc(r.record_type)}</span></td>
+      <td class="mono">${esc(r.value)}</td>
+      <td style="color:var(--text-muted)">${fmtDate(r.last_updated)}</td>
+      <td>${statusBadge(r.dns_status)}</td>
+    </tr>
+  `).join('');
+}
+
+function statusBadge(status) {
+  const labels = {
+    NOERROR: 'NOERROR', NXDOMAIN: 'NXDOMAIN',
+    MISMATCH: 'MISMATCH', SERVFAIL: 'SERVFAIL',
+    checking: 'Checking…', pending: 'Pending',
+  };
+  return `<span class="badge ${esc(status)}">${labels[status] || esc(status)}</span>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Modal
+function openModal() {
+  renderInstanceList();
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('overlay')) {
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('newName').value = '';
+    document.getElementById('newUrl').value = '';
+  }
+}
+
+function renderInstanceList() {
+  const instances = loadInstances();
+  const container = document.getElementById('instanceList');
+  if (instances.length === 0) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No instances configured.</p>'; return; }
+  container.innerHTML = instances.map((inst, i) => `
+    <div class="instance-row">
+      <span class="iname">${esc(inst.name)}</span>
+      <span class="iurl">${esc(inst.url)}</span>
+      <button class="danger" onclick="removeInstance(${i})" style="padding:3px 8px;font-size:12px">✕</button>
+    </div>
+  `).join('');
+}
+
+function addInstance() {
+  const name = document.getElementById('newName').value.trim();
+  const url = document.getElementById('newUrl').value.trim().replace(/\/$/, '');
+  if (!name || !url) { alert('Name and URL are required.'); return; }
+  const instances = loadInstances();
+  if (instances.some(i => i.name === name)) { alert(`Instance '${name}' already exists.`); return; }
+  instances.push({ name, url });
+  saveInstances(instances);
+  renderInstanceList();
+  renderTabs();
+  document.getElementById('newName').value = '';
+  document.getElementById('newUrl').value = '';
+  refresh();
+}
+
+function removeInstance(index) {
+  const instances = loadInstances();
+  const removed = instances.splice(index, 1)[0];
+  saveInstances(instances);
+  if (activeTab === removed.name) activeTab = 'all';
+  renderInstanceList();
+  renderTabs();
+  allRecords = allRecords.filter(r => r._instance !== removed.name);
+  applyFilters();
+}
+
+// Init
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
