@@ -55,11 +55,13 @@ class PiholeProvider(DNSProvider):
             if self._no_auth or self._sid:
                 return
 
+            log.info("Pi-hole authenticating to %s", self._url)
             async with httpx.AsyncClient(
                 base_url=self._url, timeout=10, verify=not self._insecure
             ) as client:
                 try:
                     resp = await client.get("/api/auth")
+                    log.debug("Pi-hole GET /api/auth → %d", resp.status_code)
                     if resp.status_code == 200:
                         session = resp.json().get("session", {})
                         if (
@@ -74,16 +76,31 @@ class PiholeProvider(DNSProvider):
                             log.debug("Reusing existing Pi-hole session")
                             self._sid = session["sid"]
                             return
+                    else:
+                        log.warning(
+                            "Pi-hole GET /api/auth returned %d — proceeding to login",
+                            resp.status_code,
+                        )
                 except Exception as exc:
-                    log.debug("GET /api/auth probe failed (%s), proceeding to login", exc)
+                    log.warning(
+                        "Pi-hole GET /api/auth at %s failed (%s: %s) — proceeding to login",
+                        self._url, type(exc).__name__, exc,
+                    )
 
                 if not self._password:
                     raise RuntimeError(
                         "Pi-hole requires authentication but no password is configured"
                     )
-                log.debug("Authenticating to Pi-hole at %s", self._url)
-                login = await client.post("/api/auth", json={"password": self._password})
+                log.info("Pi-hole POST /api/auth at %s", self._url)
+                try:
+                    login = await client.post("/api/auth", json={"password": self._password})
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Pi-hole connection to {self._url} failed: {type(exc).__name__}: {exc}"
+                    ) from exc
+                log.debug("Pi-hole POST /api/auth → %d", login.status_code)
                 if login.status_code == 401:
+                    log.warning("Pi-hole POST /api/auth 401 body: %s", login.text[:400])
                     raise RuntimeError(
                         "Pi-hole authentication failed — check the configured password"
                     )

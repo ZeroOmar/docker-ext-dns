@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.6
+
+### Changed
+- **`GET /api/auth` non-200 now logged at WARNING** — previously silenced at DEBUG; Pi-hole returning 401 for an unauthenticated probe is now visible in the logs with the status code
+- **`GET /api/auth` connection errors now logged at WARNING** — `ConnectTimeout`, `ConnectError`, and similar failures during the auth probe were previously invisible at INFO level
+- **`POST /api/auth` connection errors include URL** — instead of a bare `httpx.ConnectTimeout`, the error now reads `Pi-hole connection to http://… failed: ConnectTimeout:`
+- **`POST /api/auth` 401 body logged** — the Pi-hole response body is logged at WARNING before raising so the exact Pi-hole error message is visible
+- **Auth start and POST logged at INFO** — `Pi-hole authenticating to …` and `Pi-hole POST /api/auth at …` are now INFO so they show without enabling DEBUG
+
 ## 0.1.5
 
 ### Added
