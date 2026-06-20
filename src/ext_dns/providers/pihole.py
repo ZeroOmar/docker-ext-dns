@@ -177,7 +177,7 @@ class PiholeProvider(DNSProvider):
         element, value_str = self._encode(record)
         path = f"/api/config/{element}/{value_str}"
         log.debug("Pi-hole PUT %s (type=%s value=%s)", path, record.record_type, record.value)
-        resp = await self._request("PUT", path, params={"restart": "true"})
+        resp = await self._request("PUT", path, params={"restart": "false"})
         if resp.status_code not in (201, 400):
             resp.raise_for_status()
         if resp.status_code == 400:
@@ -218,9 +218,16 @@ class PiholeProvider(DNSProvider):
 
         path = f"/api/config/{element}/{value_str}"
         log.debug("Pi-hole DELETE %s", path)
-        resp = await self._request("DELETE", path, params={"restart": "true"})
+        resp = await self._request("DELETE", path, params={"restart": "false"})
         if resp.status_code not in (204, 404):
             resp.raise_for_status()
+
+    async def restart_dns(self) -> None:
+        await self._ensure_auth()
+        log.info("Pi-hole restarting DNS")
+        resp = await self._request("POST", "/api/action/restartdns")
+        if resp.status_code not in (200, 204):
+            log.warning("Pi-hole restartdns returned %d: %s", resp.status_code, resp.text[:200])
 
     async def logout(self) -> None:
         if self._sid and not self._no_auth:

@@ -23,6 +23,9 @@ class DNSProvider(ABC):
     @abstractmethod
     async def delete_record(self, hostname: str, record_type: str) -> None: ...
 
+    async def restart_dns(self) -> None:
+        """Called once after a batch of creates/updates/deletes. No-op by default."""
+
     async def health_check(self) -> bool:
         try:
             await self.list_records()

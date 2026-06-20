@@ -122,16 +122,25 @@ class Reconciler:
                 del self._state[k]
 
         # Apply changes concurrently
+        changed_plugins: set[str] = set()
         tasks = []
         for plugin_name, record, container_id, container_name in creates:
+            changed_plugins.add(plugin_name)
             tasks.append(self._do_create(plugin_name, record, container_id, container_name))
         for plugin_name, record, container_id, container_name in updates:
+            changed_plugins.add(plugin_name)
             tasks.append(self._do_update(plugin_name, record, container_id, container_name))
         for plugin_name, hostname, record_type in deletes:
+            changed_plugins.add(plugin_name)
             tasks.append(self._do_delete(plugin_name, hostname, record_type))
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+            for plugin_name in changed_plugins:
+                try:
+                    await self._providers[plugin_name].restart_dns()
+                except Exception as exc:
+                    log.error("Failed to restart DNS for '%s': %s", plugin_name, exc, exc_info=True)
 
         # DNS verification for all managed records
         verify_tasks = [

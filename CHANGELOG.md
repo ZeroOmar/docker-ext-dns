@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8
+
+### Changed
+- **Batched Pi-hole DNS restart** — record mutations now use `?restart=false`; after all creates/updates/deletes for a reconcile cycle complete, a single `POST /api/action/restartdns` is issued per provider instead of restarting FTL on every individual record change
+- **`restart_dns()` on provider base class** — no-op default so other future providers don't need to implement it
+
 ## 0.1.7
 
 ### Fixed
