@@ -83,7 +83,7 @@ class Reconciler:
                 for r in records:
                     actual_records[(plugin_name, r.hostname)] = r
             except Exception as exc:
-                log.error("Failed to list records from '%s': %s", plugin_name, exc)
+                log.error("Failed to list records from '%s': %s", plugin_name, exc, exc_info=True)
 
         # Compute diff
         creates: list[tuple[str, DNSRecord, str, str]] = []
@@ -186,7 +186,7 @@ class Reconciler:
             self._upsert_state(plugin_name, record, container_id, container_name)
             log.info("Created %s record '%s' via %s", record.record_type, record.hostname, plugin_name)
         except Exception as exc:
-            log.error("Failed to create record '%s' via %s: %s", record.hostname, plugin_name, exc)
+            log.error("Failed to create record '%s' via %s: %s", record.hostname, plugin_name, exc, exc_info=True)
 
     async def _do_update(
         self,
@@ -202,7 +202,7 @@ class Reconciler:
             self._upsert_state(plugin_name, record, container_id, container_name)
             log.info("Updated %s record '%s' via %s", record.record_type, record.hostname, plugin_name)
         except Exception as exc:
-            log.error("Failed to update record '%s' via %s: %s", record.hostname, plugin_name, exc)
+            log.error("Failed to update record '%s' via %s: %s", record.hostname, plugin_name, exc, exc_info=True)
 
     async def _do_delete(
         self,
@@ -218,7 +218,7 @@ class Reconciler:
             self._state.pop(key, None)
             log.info("Deleted record '%s' via %s", hostname, plugin_name)
         except Exception as exc:
-            log.error("Failed to delete record '%s' via %s: %s", hostname, plugin_name, exc)
+            log.error("Failed to delete record '%s' via %s: %s", hostname, plugin_name, exc, exc_info=True)
 
     async def _verify_record(self, key: str, record: ContainerRecord) -> None:
         record.dns_status = DNSVerificationStatus.CHECKING

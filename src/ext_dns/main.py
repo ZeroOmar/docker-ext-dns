@@ -18,6 +18,22 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+async def _run_with_restart(coro_fn, label: str, restart_delay: int = 5) -> None:
+    while True:
+        try:
+            await coro_fn()
+            log.warning("%s exited unexpectedly — restarting in %ds", label, restart_delay)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.error(
+                "%s crashed: %s — restarting in %ds",
+                label, exc, restart_delay,
+                exc_info=True,
+            )
+        await asyncio.sleep(restart_delay)
+
+
 async def _main() -> None:
     config = load_config()
     providers = load_providers(config.plugins)
@@ -42,8 +58,8 @@ async def _main() -> None:
     )
 
     await asyncio.gather(
-        reconciler.run(),
-        watcher.watch(),
+        _run_with_restart(reconciler.run, "reconciler"),
+        _run_with_restart(watcher.watch, "watcher"),
         server.serve(),
     )
 

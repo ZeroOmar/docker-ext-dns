@@ -94,17 +94,28 @@ class PiholeProvider(DNSProvider):
                     self._sid[:8] if self._sid else "?",
                 )
 
+    def _log_response(self, method: str, path: str, resp: httpx.Response) -> None:
+        level = logging.DEBUG if resp.status_code < 400 else logging.WARNING
+        log.log(level, "Pi-hole %s %s → %d", method, path, resp.status_code)
+        if resp.status_code >= 400:
+            try:
+                log.warning("Pi-hole response body: %s", resp.text[:800])
+            except Exception:
+                pass
+
     async def _request(
         self, method: str, path: str, **kwargs
     ) -> httpx.Response:
         async with self._client() as client:
             resp = await client.request(method, path, **kwargs)
+            self._log_response(method, path, resp)
             if resp.status_code == 401:
                 self._sid = None
                 self._no_auth = False
                 await self._ensure_auth()
                 async with self._client() as retry_client:
                     resp = await retry_client.request(method, path, **kwargs)
+                    self._log_response(method, path, resp)
             return resp
 
     async def list_records(self) -> list[DNSRecord]:
@@ -114,7 +125,7 @@ class PiholeProvider(DNSProvider):
         resp = await self._request("GET", f"/api/config/{_HOSTS_ELEMENT}")
         resp.raise_for_status()
         hosts: list[str] = (
-            resp.json().get("config", {}).get("dns", {}).get("hosts", [])
+            resp.json().get("config", {}).get("dns", {}).get("hosts", []) or []
         )
         for entry in hosts:
             parts = entry.split()
@@ -123,11 +134,12 @@ class PiholeProvider(DNSProvider):
                 records.append(
                     DNSRecord(hostname=hostname, record_type=RecordType.A, value=ip)
                 )
+        log.debug("Pi-hole A records: %d entries", len(hosts))
 
         resp = await self._request("GET", f"/api/config/{_CNAME_ELEMENT}")
         resp.raise_for_status()
         cnames: list[str] = (
-            resp.json().get("config", {}).get("dns", {}).get("cnameRecords", [])
+            resp.json().get("config", {}).get("dns", {}).get("cnameRecords", []) or []
         )
         for entry in cnames:
             parts = entry.split(",")
@@ -138,17 +150,16 @@ class PiholeProvider(DNSProvider):
                         hostname=alias, record_type=RecordType.CNAME, value=target
                     )
                 )
+        log.debug("Pi-hole CNAME records: %d entries", len(cnames))
 
         return records
 
     async def create_record(self, record: DNSRecord) -> None:
         await self._ensure_auth()
         element, value_str = self._encode(record)
-        resp = await self._request(
-            "PUT",
-            f"/api/config/{element}/{value_str}",
-            params={"restart": "true"},
-        )
+        path = f"/api/config/{element}/{value_str}"
+        log.debug("Pi-hole PUT %s (type=%s value=%s)", path, record.record_type, record.value)
+        resp = await self._request("PUT", path, params={"restart": "true"})
         if resp.status_code not in (201, 400):
             resp.raise_for_status()
         if resp.status_code == 400:
@@ -187,11 +198,9 @@ class PiholeProvider(DNSProvider):
             )
             element = _CNAME_ELEMENT
 
-        resp = await self._request(
-            "DELETE",
-            f"/api/config/{element}/{value_str}",
-            params={"restart": "true"},
-        )
+        path = f"/api/config/{element}/{value_str}"
+        log.debug("Pi-hole DELETE %s", path)
+        resp = await self._request("DELETE", path, params={"restart": "true"})
         if resp.status_code not in (204, 404):
             resp.raise_for_status()
 

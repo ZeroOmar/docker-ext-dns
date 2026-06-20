@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5
+
+### Added
+- **Pi-hole response logging** — every HTTP call to Pi-hole is logged at DEBUG level with method, path, and status code; non-2xx responses also log up to 800 bytes of the response body at WARNING level so the exact error from Pi-hole is visible
+- **Full traceback on provider errors** — reconciler error logs now include `exc_info=True`; previously empty-looking messages like `Failed to list records from 'pihole': ` now print the full exception type and stack trace
+
+### Changed
+- **Resilient background tasks** — reconciler and Docker watcher are each wrapped in a restart loop; a crash in either no longer takes down the web UI — the failing component logs the error and restarts after 5 seconds while the FastAPI server keeps serving
+
 ## 0.1.4
 
 ### Fixed
