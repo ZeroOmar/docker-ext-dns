@@ -8,10 +8,17 @@ class WebConfig(BaseModel):
     port: int = 8080
 
 
+class RemoteInstanceConfig(BaseModel):
+    name: str
+    url: str
+    insecure: bool = False
+
+
 class AppConfig(BaseModel):
     interval: int = Field(30, ge=5)
     plugins: dict[str, dict] = Field(default_factory=dict)
     web: WebConfig = Field(default_factory=WebConfig)
+    instances: list[RemoteInstanceConfig] = Field(default_factory=list)
 
 
 def load_config() -> AppConfig:

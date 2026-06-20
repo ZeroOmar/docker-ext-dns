@@ -43,4 +43,11 @@ class InstanceStatus(BaseModel):
     record_count: int
     providers: list[str]
     last_reconcile: Optional[datetime]
-    version: str = "0.1.0"
+    version: str = "0.1.2"
+
+
+class RemoteInstanceInfo(BaseModel):
+    name: str
+    url: str
+    insecure: bool = False
+    proxied: bool = True

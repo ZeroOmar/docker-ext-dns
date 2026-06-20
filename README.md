@@ -18,7 +18,7 @@ Watches running containers, reads `ext-dns.*` labels, and automatically creates,
 # docker-compose.yml
 services:
   ext-dns:
-    image: docker-ext-dns:latest
+    image: ghcr.io/zeroomar/docker-ext-dns:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -75,11 +75,38 @@ web:
 | `GET /api/instances` | Instance metadata |
 | `POST /api/reconcile` | Trigger an immediate reconcile cycle |
 
+## Multi-Instance
+
+To aggregate records from multiple docker-ext-dns deployments into one UI, configure remote instances in `EXT_DNS_CONFIG`. The local instance fetches their records server-side, so self-signed HTTPS certificates are handled correctly without any browser trust issues.
+
+```yaml
+interval: 30
+plugins:
+  pihole:
+    url: https://pihole.home:443
+    password: secret
+    insecure: true          # skip TLS verification for self-signed cert
+
+instances:
+  - name: server-room
+    url: http://192.168.1.50:8080   # plain HTTP — direct fetch
+  - name: remote-site
+    url: https://dns.remote.lan:8080
+    insecure: true          # self-signed cert — proxied through local backend
+
+web:
+  port: 8080
+```
+
+The web UI auto-discovers these instances from `/api/instances` on every load. Records from all instances appear under a single table with per-instance tabs. You can also add instances ad-hoc via the UI (stored in browser `localStorage`) for plain-HTTP instances reachable from your browser.
+
 ## Providers
 
 ### Pi-hole (v6)
 
-Config keys: `url`, `password` (optional if no auth set).
+Config keys: `url`, `password` (optional if no auth set), `insecure` (default `false`).
+
+Set `insecure: true` to skip TLS certificate verification when Pi-hole is behind a self-signed certificate.
 
 Manages records via `PUT`/`DELETE /api/config/dns%2Fhosts/{value}` and `dns%2FcnameRecords/{value}`.
 

@@ -17,14 +17,16 @@ class PiholeProvider(DNSProvider):
     DNS provider for Pi-hole v6.
 
     Config keys:
-      url      (str, required) — Pi-hole base URL, e.g. "http://pihole:80"
-      password (str, optional) — Pi-hole web password; omit if no auth is set
+      url      (str, required)  — Pi-hole base URL, e.g. "https://pihole:443"
+      password (str, optional)  — Pi-hole web password; omit if no auth is set
+      insecure (bool, optional) — skip TLS certificate verification (default false)
     """
 
     def __init__(self, config: dict) -> None:
         super().__init__(config)
         self._url = config["url"].rstrip("/")
         self._password: str | None = config.get("password")
+        self._insecure: bool = bool(config.get("insecure", False))
         self._sid: str | None = None
         self._no_auth = False
 
@@ -36,10 +38,15 @@ class PiholeProvider(DNSProvider):
         headers = {}
         if self._sid:
             headers["sid"] = self._sid
-        return httpx.AsyncClient(base_url=self._url, headers=headers, timeout=10)
+        return httpx.AsyncClient(
+            base_url=self._url,
+            headers=headers,
+            timeout=10,
+            verify=not self._insecure,
+        )
 
     async def _ensure_auth(self) -> None:
-        async with httpx.AsyncClient(base_url=self._url, timeout=10) as client:
+        async with httpx.AsyncClient(base_url=self._url, timeout=10, verify=not self._insecure) as client:
             resp = await client.get("/api/auth")
             resp.raise_for_status()
             session = resp.json()["session"]

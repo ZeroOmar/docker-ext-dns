@@ -1,25 +1,33 @@
 from pathlib import Path
 from typing import Annotated, Optional
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ext_dns.models import ContainerRecord, DNSVerificationStatus, InstanceStatus
+from ext_dns.config import AppConfig
+from ext_dns.models import (
+    ContainerRecord,
+    DNSVerificationStatus,
+    InstanceStatus,
+    RemoteInstanceInfo,
+)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
 
-def build_app(reconciler) -> FastAPI:
+def build_app(reconciler, config: AppConfig) -> FastAPI:
     app = FastAPI(title="docker-ext-dns", docs_url=None, redoc_url=None)
+
+    _remote_by_name = {inst.name: inst for inst in config.instances}
 
     @app.get("/api/health", response_model=InstanceStatus)
     async def health() -> InstanceStatus:
         records = reconciler.state
-        healthy = True
         return InstanceStatus(
             url="",
-            healthy=healthy,
+            healthy=True,
             record_count=len(records),
             providers=reconciler.provider_names,
             last_reconcile=reconciler.last_reconcile,
@@ -37,18 +45,37 @@ def build_app(reconciler) -> FastAPI:
             records = [r for r in records if r.dns_status == dns_status]
         return records
 
-    @app.get("/api/instances", response_model=list[InstanceStatus])
-    async def get_instances() -> list[InstanceStatus]:
-        records = reconciler.state
+    @app.get("/api/instances", response_model=list[RemoteInstanceInfo])
+    async def get_instances() -> list[RemoteInstanceInfo]:
         return [
-            InstanceStatus(
-                url="",
-                healthy=True,
-                record_count=len(records),
-                providers=reconciler.provider_names,
-                last_reconcile=reconciler.last_reconcile,
+            RemoteInstanceInfo(
+                name=inst.name,
+                url=inst.url,
+                insecure=inst.insecure,
+                proxied=True,
             )
+            for inst in config.instances
         ]
+
+    @app.get("/api/instances/{name}/records")
+    async def get_instance_records(name: str) -> JSONResponse:
+        inst = _remote_by_name.get(name)
+        if inst is None:
+            raise HTTPException(status_code=404, detail=f"Instance '{name}' not configured")
+        try:
+            async with httpx.AsyncClient(
+                verify=not inst.insecure,
+                timeout=8,
+            ) as client:
+                resp = await client.get(f"{inst.url}/api/records")
+                resp.raise_for_status()
+                return JSONResponse(content=resp.json())
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail=f"Instance '{name}' timed out")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=502, detail=f"Instance '{name}' returned {exc.response.status_code}")
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Instance '{name}' unreachable: {exc}")
 
     @app.post("/api/reconcile", status_code=202)
     async def trigger_reconcile() -> JSONResponse:

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 
 import uvicorn
 
@@ -12,6 +13,7 @@ from ext_dns.web.app import build_app
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    stream=sys.stdout,
 )
 log = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ async def _main() -> None:
     watcher = DockerWatcher(on_state_change=reconciler.trigger_reconcile)
     reconciler.set_watcher(watcher)
 
-    app = build_app(reconciler)
+    app = build_app(reconciler, config)
     server_config = uvicorn.Config(
         app,
         host="0.0.0.0",

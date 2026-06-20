@@ -1,9 +1,17 @@
 # Changelog
 
-## 0.1.1
+## 0.1.2
 
 ### Added
-- Github pipeline
+- **`insecure` option for Pi-hole** — set `insecure: true` in the plugin config to skip TLS certificate verification when Pi-hole is behind a self-signed certificate
+- **Server-side multi-instance aggregation** — configure remote docker-ext-dns instances in `EXT_DNS_CONFIG` under `instances:`; the local backend proxies their record fetches so self-signed HTTPS instances work without browser trust issues
+- **`/api/instances` endpoint** — returns the list of server-configured remote instances (name, url, insecure, proxied)
+- **`/api/instances/{name}/records` endpoint** — proxies a `/api/records` fetch to a named server-configured instance using the appropriate TLS settings
+
+### Changed
+- **Stateless web UI** — instance list is now read-only and driven entirely by `EXT_DNS_CONFIG`; removed add/remove instance controls and all `localStorage` usage
+- **Local instance always predefined** — the local instance tab is always present and always fetches from the same host; no configuration required
+- **Logs to stdout** — all log output is written to stdout; no file logging
 
 ## 0.1.0
 
