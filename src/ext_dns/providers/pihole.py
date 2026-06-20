@@ -45,6 +45,7 @@ class PiholeProvider(DNSProvider):
             headers=headers,
             timeout=10,
             verify=not self._insecure,
+            trust_env=False,
         )
 
     async def _ensure_auth(self) -> None:
@@ -57,7 +58,7 @@ class PiholeProvider(DNSProvider):
 
             log.info("Pi-hole authenticating to %s", self._url)
             async with httpx.AsyncClient(
-                base_url=self._url, timeout=10, verify=not self._insecure
+                base_url=self._url, timeout=10, verify=not self._insecure, trust_env=False
             ) as client:
                 try:
                     resp = await client.get("/api/auth")

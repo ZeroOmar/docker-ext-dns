@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7
+
+### Fixed
+- **HTTP proxy bypass for Pi-hole** — all httpx clients now set `trust_env=False` so they ignore `HTTP_PROXY` / `HTTPS_PROXY` environment variables; Docker Compose and some container runtimes inject proxy env vars automatically, causing requests to a private IP like `10.x.x.x` to be routed through the proxy which then times out (~90 s) before httpx's own 10 s timeout could fire
+
 ## 0.1.6
 
 ### Changed
