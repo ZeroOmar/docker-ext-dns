@@ -1,6 +1,11 @@
 # Changelog
 
-## v0.1.0
+## 0.1.1
+
+### Added
+- Github pipeline
+
+## 0.1.0
 
 ### Added
 - **Core reconciler** — async loop that diffs desired DNS state (from Docker labels) against actual provider state, then creates, updates, or deletes records; woken early by Docker events via `asyncio.Event`
