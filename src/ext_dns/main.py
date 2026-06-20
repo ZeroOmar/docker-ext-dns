@@ -37,7 +37,12 @@ async def _run_with_restart(coro_fn, label: str, restart_delay: int = 5) -> None
 async def _main() -> None:
     config = load_config()
     providers = load_providers(config.plugins)
-    reconciler = Reconciler(providers, interval=config.interval)
+    reconciler = Reconciler(
+        providers,
+        interval=config.interval,
+        change_concurrency=config.change_concurrency,
+        change_delay=config.change_delay,
+    )
 
     traefik_cfg: dict[str, dict] = {}
     for plugin_name, pcfg in config.plugins.items():

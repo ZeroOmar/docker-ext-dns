@@ -50,7 +50,7 @@ class InstanceStatus(BaseModel):
     record_count: int
     providers: list[str]
     last_reconcile: Optional[datetime]
-    version: str = "0.2.0"
+    version: str = "0.3.0"
 
 
 class RemoteInstanceInfo(BaseModel):

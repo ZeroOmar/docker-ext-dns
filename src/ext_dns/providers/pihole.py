@@ -31,6 +31,10 @@ class PiholeProvider(DNSProvider):
         self._sid: str | None = None
         self._no_auth = False
         self._auth_lock = asyncio.Lock()
+        # Pi-hole applies each config change via a single shared temp file
+        # (/etc/pihole/dnsmasq.conf.temp); concurrent writes corrupt each other
+        # ("cannot read dnsmasq.conf.temp"). Serialize all mutating requests.
+        self._write_lock = asyncio.Lock()
 
     @property
     def name(self) -> str:
@@ -122,6 +126,16 @@ class PiholeProvider(DNSProvider):
                 pass
 
     async def _request(
+        self, method: str, path: str, **kwargs
+    ) -> httpx.Response:
+        # Serialize config mutations: Pi-hole cannot apply two config writes at
+        # once (they race on a shared temp file). Reads (GET) stay concurrent.
+        if method.upper() in ("PUT", "POST", "DELETE"):
+            async with self._write_lock:
+                return await self._send(method, path, **kwargs)
+        return await self._send(method, path, **kwargs)
+
+    async def _send(
         self, method: str, path: str, **kwargs
     ) -> httpx.Response:
         async with self._client() as client:

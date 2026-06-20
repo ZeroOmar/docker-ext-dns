@@ -23,9 +23,17 @@ def _utcnow() -> datetime:
 
 
 class Reconciler:
-    def __init__(self, providers: list[DNSProvider], interval: int) -> None:
+    def __init__(
+        self,
+        providers: list[DNSProvider],
+        interval: int,
+        change_concurrency: int = 2,
+        change_delay: float = 0.0,
+    ) -> None:
         self._providers: dict[str, DNSProvider] = {p.name: p for p in providers}
         self._interval = interval
+        self._change_concurrency = max(1, change_concurrency)
+        self._change_delay = max(0.0, change_delay)
         self._watcher: Optional[DockerWatcher] = None
         self._state: dict[str, ContainerRecord] = {}
         self._managed: set[tuple[str, str]] = set()
@@ -136,7 +144,14 @@ class Reconciler:
             tasks.append(self._do_delete(plugin_name, hostname, record_type))
 
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            if len(tasks) > self._change_concurrency:
+                log.info(
+                    "Applying %d record changes (max %d at a time%s)",
+                    len(tasks), self._change_concurrency,
+                    f", {self._change_delay}s apart" if self._change_delay else "",
+                )
+            await self._apply_throttled(tasks)
+            # Restart DNS only once per plugin, after all changes have been applied.
             for plugin_name in changed_plugins:
                 try:
                     await self._providers[plugin_name].restart_dns()
@@ -156,6 +171,21 @@ class Reconciler:
             "Reconcile complete: %d desired, %d creates, %d updates, %d deletes",
             len(desired_records), len(creates), len(updates), len(deletes),
         )
+
+    async def _apply_throttled(self, tasks: list) -> None:
+        """Run change operations with bounded concurrency (and an optional pause
+        after each) so a large diff does not flood the DNS backend."""
+        sem = asyncio.Semaphore(self._change_concurrency)
+
+        async def run(coro) -> None:
+            async with sem:
+                try:
+                    await coro
+                finally:
+                    if self._change_delay:
+                        await asyncio.sleep(self._change_delay)
+
+        await asyncio.gather(*(run(t) for t in tasks), return_exceptions=True)
 
     def _upsert_state(
         self,

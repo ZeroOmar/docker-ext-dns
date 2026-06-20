@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+### Fixed
+- **Serialized Pi-hole config writes** — Pi-hole applies every config change through a single shared temporary file (`/etc/pihole/dnsmasq.conf.temp`), so two concurrent `PUT`/`DELETE /api/config/...` requests race and corrupt each other, producing `400 Invalid configuration` (`cannot read dnsmasq.conf.temp: No such file or directory`) and cascading `ReadTimeout` errors whenever a reconcile applied many changes at once. The Pi-hole provider now serializes all mutating requests behind a write lock (reads stay concurrent), eliminating the race
+
+### Added
+- **Change throttling** — new top-level config keys `change_concurrency` (default `2`, max simultaneous record changes) and `change_delay` (default `0`, seconds to pause after each change) bound how fast a large diff is applied so the DNS backend is not overloaded. The single DNS restart still runs once, after all changes complete
+
 ## 0.2.0
 
 ### Added

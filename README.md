@@ -86,7 +86,9 @@ my-app:
 ## Configuration (`EXT_DNS_CONFIG`)
 
 ```yaml
-interval: 30          # seconds between reconcile loops (minimum 5)
+interval: 30            # seconds between reconcile loops (minimum 5)
+change_concurrency: 2   # max record changes applied at once (throttles large diffs)
+change_delay: 0         # optional seconds to pause after each change
 plugins:
   pihole:
     url: http://pihole:80
@@ -97,6 +99,16 @@ plugins:
 web:
   port: 8080
 ```
+
+When a reconcile produces many changes, they are applied with bounded
+concurrency (`change_concurrency`, default `2`) so the DNS backend is not
+overloaded. Set `change_delay` to add a fixed pause after each change for even
+gentler pacing. The single DNS restart still happens once, after all changes.
+
+In addition, the Pi-hole provider **serializes all config writes** internally:
+Pi-hole applies each change through a single shared temporary file, so concurrent
+writes corrupt one another (`cannot read dnsmasq.conf.temp` → `400 Invalid
+configuration`). Reads remain concurrent.
 
 ## API
 

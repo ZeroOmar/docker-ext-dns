@@ -19,6 +19,10 @@ class AppConfig(BaseModel):
     plugins: dict[str, dict] = Field(default_factory=dict)
     web: WebConfig = Field(default_factory=WebConfig)
     instances: list[RemoteInstanceConfig] = Field(default_factory=list)
+    # Throttle how fast record changes are applied so a large diff does not
+    # overload the DNS backend (e.g. Pi-hole).
+    change_concurrency: int = Field(2, ge=1)  # max simultaneous change operations
+    change_delay: float = Field(0.0, ge=0)  # seconds to pause after each operation
 
 
 def load_config() -> AppConfig:
