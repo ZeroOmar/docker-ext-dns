@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9
+
+### Fixed
+- **Event loop no longer blocked by the Docker watcher** — `DockerWatcher.watch()` ran docker-py's blocking `events()` generator directly on the asyncio event loop, freezing every other task (reconciler, web server) between Docker events; the blocking iteration now runs in a worker thread via `asyncio.to_thread` and hands events back with `run_coroutine_threadsafe`. This was the real cause of Pi-hole `ConnectTimeout` failures that surfaced at 60–90 s despite the 10 s client timeout — the async connect and its timeout timer could not progress while the loop was parked inside `next(events)`
+- **`get_desired_state()` offloaded off the loop** — the reconciler called the blocking docker-py `containers.list()` synchronously on the event loop each reconcile cycle; it is now wrapped in `asyncio.to_thread`
+
 ## 0.1.8
 
 ### Changed

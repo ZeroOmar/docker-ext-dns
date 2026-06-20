@@ -153,7 +153,14 @@ class DockerWatcher:
         return result
 
     async def watch(self) -> None:
+        # docker-py's events() is a blocking generator. Running it directly on the
+        # event loop freezes every other task (reconciler, web server) between
+        # events. Offload the blocking iteration to a worker thread and hand each
+        # event back to the loop via run_coroutine_threadsafe.
         loop = asyncio.get_running_loop()
+        await asyncio.to_thread(self._watch_blocking, loop)
+
+    def _watch_blocking(self, loop: asyncio.AbstractEventLoop) -> None:
         try:
             events = self._get_client().events(
                 decode=True,
@@ -165,9 +172,6 @@ class DockerWatcher:
                     asyncio.run_coroutine_threadsafe(
                         self._on_state_change(), loop
                     )
-                await asyncio.sleep(0)
-        except asyncio.CancelledError:
-            pass
         except Exception as exc:
             log.error("Docker event stream error: %s", exc)
             self._client = None

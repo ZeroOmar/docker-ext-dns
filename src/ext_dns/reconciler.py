@@ -59,7 +59,7 @@ class Reconciler:
         if self._watcher is None:
             return
 
-        desired = self._watcher.get_desired_state()
+        desired = await asyncio.to_thread(self._watcher.get_desired_state)
 
         # Build desired set: (plugin, hostname) -> (DNSRecord, container_id, container_name)
         desired_records: dict[tuple[str, str], tuple[DNSRecord, str, str]] = {}
