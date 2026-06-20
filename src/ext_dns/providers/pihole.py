@@ -46,27 +46,36 @@ class PiholeProvider(DNSProvider):
         )
 
     async def _ensure_auth(self) -> None:
+        if self._no_auth or self._sid:
+            return
+
         async with httpx.AsyncClient(base_url=self._url, timeout=10, verify=not self._insecure) as client:
-            resp = await client.get("/api/auth")
-            resp.raise_for_status()
-            session = resp.json()["session"]
-
-            if session["valid"] and session["sid"] is None and session["validity"] == -1:
-                self._no_auth = True
-                self._sid = None
-                return
-
-            if session["valid"] and session["sid"]:
-                self._sid = session["sid"]
-                return
+            try:
+                resp = await client.get("/api/auth")
+                if resp.status_code == 200:
+                    session = resp.json().get("session", {})
+                    if session.get("valid") and session.get("sid") is None and session.get("validity") == -1:
+                        log.info("Pi-hole requires no authentication")
+                        self._no_auth = True
+                        return
+                    if session.get("valid") and session.get("sid"):
+                        log.debug("Reusing existing Pi-hole session")
+                        self._sid = session["sid"]
+                        return
+            except Exception as exc:
+                log.debug("GET /api/auth probe failed (%s), proceeding to login", exc)
 
             if not self._password:
                 raise RuntimeError(
                     "Pi-hole requires authentication but no password is configured"
                 )
+            log.debug("Authenticating to Pi-hole at %s", self._url)
             login = await client.post("/api/auth", json={"password": self._password})
+            if login.status_code == 401:
+                raise RuntimeError("Pi-hole authentication failed — check the configured password")
             login.raise_for_status()
             self._sid = login.json()["session"]["sid"]
+            log.info("Authenticated to Pi-hole (sid: %s…)", self._sid[:8] if self._sid else "?")
 
     async def _request(
         self, method: str, path: str, **kwargs
@@ -75,6 +84,7 @@ class PiholeProvider(DNSProvider):
             resp = await client.request(method, path, **kwargs)
             if resp.status_code == 401:
                 self._sid = None
+                self._no_auth = False
                 await self._ensure_auth()
                 async with self._client() as retry_client:
                     resp = await retry_client.request(method, path, **kwargs)

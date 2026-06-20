@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.3
+
+### Fixed
+- **Pi-hole auth short-circuit** — `_ensure_auth` now returns immediately if a session is already established, preventing redundant `POST /api/auth` calls on every `list_records`, `create_record`, and `delete_record` invocation
+- **Resilient auth probe** — `GET /api/auth` errors (non-200 status, network failure, unexpected JSON shape) no longer abort before the login attempt; the provider falls through to `POST /api/auth` directly
+- **Session expiry re-auth** — the 401 retry path in `_request` now resets `_no_auth` so a session that expires after initial "no auth" detection correctly re-authenticates
+- **Clear auth error message** — a 401 from `POST /api/auth` now raises `"Pi-hole authentication failed — check the configured password"` instead of a generic HTTP status error
+
+### Changed
+- **`run_dev.sh` heredoc** — config is now assigned via `read -d '' … <<'YAML'` so YAML-quoted values (passwords, URLs) are passed literally without shell interference
+
 ## 0.1.2
 
 ### Added
