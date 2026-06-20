@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import urllib.parse
 
@@ -29,6 +30,7 @@ class PiholeProvider(DNSProvider):
         self._insecure: bool = bool(config.get("insecure", False))
         self._sid: str | None = None
         self._no_auth = False
+        self._auth_lock = asyncio.Lock()
 
     @property
     def name(self) -> str:
@@ -48,34 +50,49 @@ class PiholeProvider(DNSProvider):
     async def _ensure_auth(self) -> None:
         if self._no_auth or self._sid:
             return
+        async with self._auth_lock:
+            # Re-check after acquiring lock: another coroutine may have auth'd first.
+            if self._no_auth or self._sid:
+                return
 
-        async with httpx.AsyncClient(base_url=self._url, timeout=10, verify=not self._insecure) as client:
-            try:
-                resp = await client.get("/api/auth")
-                if resp.status_code == 200:
-                    session = resp.json().get("session", {})
-                    if session.get("valid") and session.get("sid") is None and session.get("validity") == -1:
-                        log.info("Pi-hole requires no authentication")
-                        self._no_auth = True
-                        return
-                    if session.get("valid") and session.get("sid"):
-                        log.debug("Reusing existing Pi-hole session")
-                        self._sid = session["sid"]
-                        return
-            except Exception as exc:
-                log.debug("GET /api/auth probe failed (%s), proceeding to login", exc)
+            async with httpx.AsyncClient(
+                base_url=self._url, timeout=10, verify=not self._insecure
+            ) as client:
+                try:
+                    resp = await client.get("/api/auth")
+                    if resp.status_code == 200:
+                        session = resp.json().get("session", {})
+                        if (
+                            session.get("valid")
+                            and session.get("sid") is None
+                            and session.get("validity") == -1
+                        ):
+                            log.info("Pi-hole requires no authentication")
+                            self._no_auth = True
+                            return
+                        if session.get("valid") and session.get("sid"):
+                            log.debug("Reusing existing Pi-hole session")
+                            self._sid = session["sid"]
+                            return
+                except Exception as exc:
+                    log.debug("GET /api/auth probe failed (%s), proceeding to login", exc)
 
-            if not self._password:
-                raise RuntimeError(
-                    "Pi-hole requires authentication but no password is configured"
+                if not self._password:
+                    raise RuntimeError(
+                        "Pi-hole requires authentication but no password is configured"
+                    )
+                log.debug("Authenticating to Pi-hole at %s", self._url)
+                login = await client.post("/api/auth", json={"password": self._password})
+                if login.status_code == 401:
+                    raise RuntimeError(
+                        "Pi-hole authentication failed — check the configured password"
+                    )
+                login.raise_for_status()
+                self._sid = login.json()["session"]["sid"]
+                log.info(
+                    "Authenticated to Pi-hole (sid: %s…)",
+                    self._sid[:8] if self._sid else "?",
                 )
-            log.debug("Authenticating to Pi-hole at %s", self._url)
-            login = await client.post("/api/auth", json={"password": self._password})
-            if login.status_code == 401:
-                raise RuntimeError("Pi-hole authentication failed — check the configured password")
-            login.raise_for_status()
-            self._sid = login.json()["session"]["sid"]
-            log.info("Authenticated to Pi-hole (sid: %s…)", self._sid[:8] if self._sid else "?")
 
     async def _request(
         self, method: str, path: str, **kwargs

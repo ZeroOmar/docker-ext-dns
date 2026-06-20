@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+### Fixed
+- **Pi-hole concurrent auth race** — `_ensure_auth` now holds an `asyncio.Lock` with a double-checked locking pattern; concurrent reconcile tasks (creates, deletes) no longer fire simultaneous `POST /api/auth` requests that cause Pi-hole to reject the second login with 401
+
 ## 0.1.3
 
 ### Fixed
