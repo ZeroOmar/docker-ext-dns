@@ -200,14 +200,26 @@
   .hidden { display: none !important; }
 
   .refresh-time { color: var(--text-muted); font-size: 12px; }
+  a.refresh-time { text-decoration: none; transition: color 0.15s; }
+  a.refresh-time:hover { color: var(--accent); }
+  .refresh-time.outdated { color: var(--red); }
+  a.refresh-time.outdated:hover { color: var(--red); text-decoration: underline; }
+  .header-actions .divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border);
+    margin: 2px 2px;
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>docker-<span>ext-dns</span></h1>
-  <span class="refresh-time" id="lastRefresh"></span>
+  <h1><span>docker-ext-dns</span></h1>
   <div class="header-actions">
+    <span class="refresh-time" id="lastRefresh"></span>
+    <span class="divider"></span>
+    <a class="refresh-time" id="appVersion" href="https://github.com/ZeroOmar/docker-ext-dns" target="_blank" rel="noopener"></a>
     <button onclick="refresh()">↻ Refresh</button>
   </div>
 </header>
@@ -265,11 +277,69 @@ let sortKey = null;   // null = default order (instance, then container)
 let sortDir = 1;      // 1 = ascending, -1 = descending
 
 const LOCAL = { name: 'local', proxied: false };
+const GITHUB_TAGS_URL = 'https://api.github.com/repos/ZeroOmar/docker-ext-dns/tags';
+const VERSION_CHECK_INTERVAL = 6 * 60 * 60 * 1000;  // 6 hours
+
+let currentVersion = null;
 
 function fetchWithTimeout(url, timeout) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
+async function loadVersion() {
+  try {
+    const r = await fetchWithTimeout('/api/health', 3000);
+    if (r.ok) {
+      const { version } = await r.json();
+      if (version) {
+        currentVersion = version;
+        document.getElementById('appVersion').textContent = 'v' + version;
+        checkLatestVersion();
+      }
+    }
+  } catch {}
+}
+
+// Parse "1.2.3" (or "v1.2.3") into [1, 2, 3]; returns null on garbage.
+function parseSemver(v) {
+  const m = String(v).trim().replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+
+// Returns 1 if a > b, -1 if a < b, 0 if equal.
+function cmpSemver(a, b) {
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
+  }
+  return 0;
+}
+
+async function checkLatestVersion() {
+  if (!currentVersion) return;
+  const cur = parseSemver(currentVersion);
+  if (!cur) return;
+  try {
+    const r = await fetchWithTimeout(GITHUB_TAGS_URL, 5000);
+    if (!r.ok) return;
+    const tags = await r.json();
+    let latest = null;
+    for (const t of tags) {
+      const v = parseSemver(t.name);
+      if (v && (!latest || cmpSemver(v, latest) > 0)) latest = v;
+    }
+    if (!latest) return;
+    const el = document.getElementById('appVersion');
+    if (cmpSemver(latest, cur) > 0) {
+      const latestStr = latest.join('.');
+      el.classList.add('outdated');
+      el.title = `Update available: v${latestStr} (you have v${currentVersion})`;
+    } else {
+      el.classList.remove('outdated');
+      el.title = 'Up to date';
+    }
+  } catch {}
 }
 
 async function loadInstances() {
@@ -462,8 +532,10 @@ function esc(s) {
 }
 
 setupSorting();
+loadVersion();
 refresh();
 setInterval(refresh, 30000);
+setInterval(checkLatestVersion, VERSION_CHECK_INTERVAL);
 </script>
 </body>
 </html>

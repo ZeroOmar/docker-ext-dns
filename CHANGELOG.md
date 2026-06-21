@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+- **Version indicator in the web UI header** — the running application version (from `/api/health`) is now shown on the right of the header, next to the Refresh button and separated from the "Updated" timestamp by a divider. It links to the GitHub project
+- **Automatic update check** — the web UI periodically compares the running version against the latest tag on GitHub (every 6 hours, and once on load). When a newer version is available the version label turns red, with a tooltip showing the available version
+
+### Changed
+- **Header layout** — the "Updated" timestamp moved from beside the title to the right-hand actions group, alongside the version and Refresh button
+
 ## 0.4.0
 
 ### Fixed
