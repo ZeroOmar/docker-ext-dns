@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+### Fixed
+- **Empty-state message no longer lingers under a populated table** — the web UI toggled a `hidden` class on the "No records found" block, but no `.hidden` CSS rule existed, so the class had no effect and the message stayed visible beneath the records. Added the missing `.hidden { display: none !important; }` rule
+
+### Added
+- **Sortable records table** — the web UI table now defaults to ordering by Instance, then Container. Clicking any column header sorts by that column; clicking the same header again toggles ascending/descending, with an arrow indicator on the active column. Dates sort chronologically and other columns use natural (numeric-aware) string comparison
+
 ## 0.3.0
 
 ### Fixed

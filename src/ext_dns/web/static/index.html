@@ -119,7 +119,13 @@
     font-weight: 500;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
   }
+  th:hover { color: var(--text); }
+  th .arrow { opacity: 0; margin-left: 4px; font-size: 10px; }
+  th.sorted .arrow { opacity: 1; }
+  th.sorted { color: var(--text); }
 
   td {
     padding: 10px 12px;
@@ -191,6 +197,7 @@
     color: var(--text-muted);
   }
   .empty p { margin-top: 8px; font-size: 13px; }
+  .hidden { display: none !important; }
 
   .refresh-time { color: var(--text-muted); font-size: 12px; }
 </style>
@@ -226,16 +233,16 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>Instance</th>
-          <th>Container</th>
-          <th>Plugin</th>
-          <th>Hostname</th>
-          <th>Type</th>
-          <th>Value</th>
-          <th>Source</th>
-          <th>Last Updated</th>
-          <th>DNS Status</th>
+        <tr id="headRow">
+          <th data-key="_instance">Instance<span class="arrow"></span></th>
+          <th data-key="container_name">Container<span class="arrow"></span></th>
+          <th data-key="plugin">Plugin<span class="arrow"></span></th>
+          <th data-key="hostname">Hostname<span class="arrow"></span></th>
+          <th data-key="record_type">Type<span class="arrow"></span></th>
+          <th data-key="value">Value<span class="arrow"></span></th>
+          <th data-key="source">Source<span class="arrow"></span></th>
+          <th data-key="last_updated">Last Updated<span class="arrow"></span></th>
+          <th data-key="dns_status">DNS Status<span class="arrow"></span></th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -254,6 +261,8 @@ let allRecords = [];
 let instanceStatuses = {};
 let activeTab = 'all';
 let instances = [];   // populated on each refresh from server
+let sortKey = null;   // null = default order (instance, then container)
+let sortDir = 1;      // 1 = ascending, -1 = descending
 
 const LOCAL = { name: 'local', proxied: false };
 
@@ -341,9 +350,59 @@ function applyFilters() {
   if (activeTab !== 'all') records = records.filter(r => r._instance === activeTab);
   if (pluginFilter)  records = records.filter(r => r.plugin === pluginFilter);
   if (statusFilter)  records = records.filter(r => r.dns_status === statusFilter);
+  records = sortRecords(records);
   renderTable(records);
   document.getElementById('recordCount').textContent =
     records.length + ' record' + (records.length !== 1 ? 's' : '');
+}
+
+function cmp(a, b, key) {
+  if (key === 'last_updated') {
+    return new Date(a[key] || 0) - new Date(b[key] || 0);
+  }
+  return String(a[key] ?? '').localeCompare(
+    String(b[key] ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function sortRecords(records) {
+  const recs = records.slice();
+  if (sortKey === null) {
+    recs.sort((a, b) => cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
+  } else {
+    recs.sort((a, b) =>
+      sortDir * cmp(a, b, sortKey)
+      || cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
+  }
+  return recs;
+}
+
+function setupSorting() {
+  document.querySelectorAll('#headRow th').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (sortKey === key) {
+        sortDir = -sortDir;
+      } else {
+        sortKey = key;
+        sortDir = 1;
+      }
+      updateSortIndicators();
+      applyFilters();
+    });
+  });
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll('#headRow th').forEach(th => {
+    const arrow = th.querySelector('.arrow');
+    if (th.dataset.key === sortKey) {
+      th.classList.add('sorted');
+      arrow.textContent = sortDir === 1 ? '▲' : '▼';
+    } else {
+      th.classList.remove('sorted');
+      arrow.textContent = '';
+    }
+  });
 }
 
 function updatePluginFilter() {
@@ -402,6 +461,7 @@ function esc(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+setupSorting();
 refresh();
 setInterval(refresh, 30000);
 </script>
