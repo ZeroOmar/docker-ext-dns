@@ -12,7 +12,7 @@ Watches running containers, reads `ext-dns.*` labels, and automatically creates,
 - Modular provider system — add new DNS backends by implementing one interface
 - DNS verification: checks whether each record actually resolves after creation
 - Source of truth: a managed name is fully replaced on create (any conflicting A/CNAME of the same name is removed first)
-- Web UI with multi-instance aggregation, a per-record source badge (ext-dns / traefik), a sortable records table, and a version indicator that flags when a newer release is available on GitHub
+- Web UI with multi-instance aggregation, a per-record source badge (ext-dns / traefik), a sortable records table, and version indicators that flag (for the local instance and every connected one) when a newer release is available on GitHub
 
 ## Quick Start
 
@@ -117,6 +117,8 @@ configuration`). Reads remain concurrent.
 | `GET /api/health` | Instance health and summary |
 | `GET /api/records` | All managed records (`?plugin=` and `?dns_status=` filters) |
 | `GET /api/instances` | Instance metadata |
+| `GET /api/instances/{name}/records` | Records proxied from a configured remote instance |
+| `GET /api/instances/{name}/health` | Health (including version) proxied from a configured remote instance |
 | `POST /api/reconcile` | Trigger an immediate reconcile cycle |
 
 ## Multi-Instance
@@ -142,7 +144,7 @@ web:
   port: 8080
 ```
 
-The web UI auto-discovers these instances from `/api/instances` on every load. Records from all instances appear under a single table with per-instance tabs. You can also add instances ad-hoc via the UI (stored in browser `localStorage`) for plain-HTTP instances reachable from your browser.
+The web UI auto-discovers these instances from `/api/instances` on every load. Records from all instances appear under a single table with per-instance tabs. Each tab's indicator shows the instance's state: green (reachable, up to date), amber (reachable but running an older version than the latest GitHub release), or red (unreachable). You can also add instances ad-hoc via the UI (stored in browser `localStorage`) for plain-HTTP instances reachable from your browser.
 
 ## Providers
 

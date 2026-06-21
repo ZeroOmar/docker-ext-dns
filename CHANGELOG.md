@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+- **Per-instance version checking** — the web UI now fetches each connected instance's version and compares it against the latest GitHub release. A reachable instance running an older version shows an amber tab indicator (instead of green), with a tooltip showing its version and the available update; reachable and up-to-date stays green, unreachable stays red
+- **Proxied instance health endpoint** — new `GET /api/instances/{name}/health` proxies a remote instance's `/api/health` (including its version) through the main instance, so the UI can read remote versions without direct browser access to each instance
+
+### Changed
+- **Refactored remote proxying** — the main instance's record and health proxy endpoints now share a single `_proxy_get` helper
+
 ## 0.5.0
 
 ### Added

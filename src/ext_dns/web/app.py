@@ -57,8 +57,7 @@ def build_app(reconciler, config: AppConfig) -> FastAPI:
             for inst in config.instances
         ]
 
-    @app.get("/api/instances/{name}/records")
-    async def get_instance_records(name: str) -> JSONResponse:
+    async def _proxy_get(name: str, path: str) -> JSONResponse:
         inst = _remote_by_name.get(name)
         if inst is None:
             raise HTTPException(status_code=404, detail=f"Instance '{name}' not configured")
@@ -67,7 +66,7 @@ def build_app(reconciler, config: AppConfig) -> FastAPI:
                 verify=not inst.insecure,
                 timeout=8,
             ) as client:
-                resp = await client.get(f"{inst.url}/api/records")
+                resp = await client.get(f"{inst.url}{path}")
                 resp.raise_for_status()
                 return JSONResponse(content=resp.json())
         except httpx.TimeoutException:
@@ -76,6 +75,14 @@ def build_app(reconciler, config: AppConfig) -> FastAPI:
             raise HTTPException(status_code=502, detail=f"Instance '{name}' returned {exc.response.status_code}")
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"Instance '{name}' unreachable: {exc}")
+
+    @app.get("/api/instances/{name}/records")
+    async def get_instance_records(name: str) -> JSONResponse:
+        return await _proxy_get(name, "/api/records")
+
+    @app.get("/api/instances/{name}/health")
+    async def get_instance_health(name: str) -> JSONResponse:
+        return await _proxy_get(name, "/api/health")
 
     @app.post("/api/reconcile", status_code=202)
     async def trigger_reconcile() -> JSONResponse:

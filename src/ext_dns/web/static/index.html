@@ -86,6 +86,7 @@
   }
   .tab .led.ok  { background: var(--green); }
   .tab .led.err { background: var(--red); }
+  .tab .led.outdated { background: var(--amber); }
 
   main { padding: 20px; }
 
@@ -280,7 +281,9 @@ const LOCAL = { name: 'local', proxied: false };
 const GITHUB_TAGS_URL = 'https://api.github.com/repos/ZeroOmar/docker-ext-dns/tags';
 const VERSION_CHECK_INTERVAL = 6 * 60 * 60 * 1000;  // 6 hours
 
-let currentVersion = null;
+let currentVersion = null;          // running version of the local instance
+let latestVersion = null;           // newest semver tag on GitHub, parsed
+let instanceVersions = {};          // { instanceName: "x.y.z" }
 
 function fetchWithTimeout(url, timeout) {
   const controller = new AbortController();
@@ -316,10 +319,14 @@ function cmpSemver(a, b) {
   return 0;
 }
 
+// True if `version` (a "x.y.z" string) is older than the latest GitHub tag.
+function isOutdated(version) {
+  if (!latestVersion || !version) return false;
+  const v = parseSemver(version);
+  return v ? cmpSemver(latestVersion, v) > 0 : false;
+}
+
 async function checkLatestVersion() {
-  if (!currentVersion) return;
-  const cur = parseSemver(currentVersion);
-  if (!cur) return;
   try {
     const r = await fetchWithTimeout(GITHUB_TAGS_URL, 5000);
     if (!r.ok) return;
@@ -330,16 +337,23 @@ async function checkLatestVersion() {
       if (v && (!latest || cmpSemver(v, latest) > 0)) latest = v;
     }
     if (!latest) return;
-    const el = document.getElementById('appVersion');
-    if (cmpSemver(latest, cur) > 0) {
-      const latestStr = latest.join('.');
-      el.classList.add('outdated');
-      el.title = `Update available: v${latestStr} (you have v${currentVersion})`;
-    } else {
-      el.classList.remove('outdated');
-      el.title = 'Up to date';
-    }
+    latestVersion = latest;
+    updateVersionIndicator();
+    renderTabs();  // re-color LEDs now that we know the latest version
   } catch {}
+}
+
+// Color the local version label red when an update is available.
+function updateVersionIndicator() {
+  const el = document.getElementById('appVersion');
+  if (!currentVersion || !latestVersion) return;
+  if (isOutdated(currentVersion)) {
+    el.classList.add('outdated');
+    el.title = `Update available: v${latestVersion.join('.')} (you have v${currentVersion})`;
+  } else {
+    el.classList.remove('outdated');
+    el.title = 'Up to date';
+  }
 }
 
 async function loadInstances() {
@@ -361,6 +375,17 @@ function fetchRecords(inst) {
   }
   return fetchWithTimeout(`/api/instances/${encodeURIComponent(inst.name)}/records`, FETCH_TIMEOUT)
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+}
+
+// Best-effort: returns the instance's version string, or null if unavailable.
+function fetchVersion(inst) {
+  const url = inst.proxied
+    ? `/api/instances/${encodeURIComponent(inst.name)}/health`
+    : '/api/health';
+  return fetchWithTimeout(url, 3000)
+    .then(r => r.ok ? r.json() : null)
+    .then(j => (j && j.version) ? j.version : null)
+    .catch(() => null);
 }
 
 async function refresh() {
@@ -385,6 +410,10 @@ async function refresh() {
 
   results.forEach(r => { if (r.status === 'fulfilled') allRecords.push(...r.value); });
 
+  instanceVersions = {};
+  await Promise.all(instances.map(inst =>
+    fetchVersion(inst).then(v => { if (v) instanceVersions[inst.name] = v; })));
+
   document.getElementById('lastRefresh').textContent =
     'Updated ' + new Date().toLocaleTimeString();
 
@@ -396,20 +425,30 @@ async function refresh() {
 function renderTabs() {
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
-  tabs.appendChild(makeTab('all', 'All', null));
+  tabs.appendChild(makeTab('all', 'All', null, null));
   instances.forEach(inst => {
-    tabs.appendChild(makeTab(inst.name, inst.name, instanceStatuses[inst.name]));
+    tabs.appendChild(makeTab(
+      inst.name, inst.name, instanceStatuses[inst.name], instanceVersions[inst.name]));
   });
 }
 
-function makeTab(id, label, status) {
+function makeTab(id, label, status, version) {
   const el = document.createElement('div');
   el.className = 'tab' + (activeTab === id ? ' active' : '');
   el.onclick = () => { activeTab = id; renderTabs(); applyFilters(); };
   const led = document.createElement('span');
-  led.className = 'led' + (status === 'ok' ? ' ok' : status === 'err' ? ' err' : '');
+  // reachable + outdated → amber; reachable + current → green; unreachable → red.
+  let ledState = '';
+  if (status === 'ok') ledState = isOutdated(version) ? ' outdated' : ' ok';
+  else if (status === 'err') ledState = ' err';
+  led.className = 'led' + ledState;
   el.appendChild(led);
   el.append(label);
+  if (version) {
+    el.title = isOutdated(version)
+      ? `v${version} — update available (latest v${latestVersion.join('.')})`
+      : `v${version}`;
+  }
   return el;
 }
 
