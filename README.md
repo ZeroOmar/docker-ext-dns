@@ -49,44 +49,53 @@ services:
 
 ## Labels
 
+docker-ext-dns reads the following container labels. `<plugin>` is a configured
+provider name (e.g. `pihole`, `sophos-firewall`) or the reserved keyword `all`.
+
 | Label | Required | Description |
 |---|---|---|
 | `ext-dns.<plugin>.hostname` | yes | DNS name to manage |
 | `ext-dns.<plugin>.type` | yes | `A` or `CNAME` |
-| `ext-dns.<plugin>.target` | CNAME only | CNAME target value |
-| `ext-dns.<plugin>.network` | no | Docker network to read IP from (A records) |
-| `ext-dns.<plugin>.traefik` | no | Set to `false` to opt a container out of Traefik integration for this plugin |
+| `ext-dns.<plugin>.target` | CNAME only | CNAME target value (the alias destination) |
+| `ext-dns.<plugin>.network` | no | Docker network whose container IP is used (A records); defaults to the first network alphabetically |
+| `ext-dns.<plugin>.traefik` | no | Set to `false` to opt this container out of Traefik integration for `<plugin>` |
 
-Multiple plugins per container are supported.
+- **Multiple plugins per container** are supported — repeat the labels with different `<plugin>` names.
+- **`all`** (e.g. `ext-dns.all.hostname`) publishes a record to **every configured provider** at once. An explicit `ext-dns.<plugin>.*` record for the same hostname takes precedence over the general one for that provider. (Don't name a real provider `all`.)
+- On providers that can't store CNAMEs (e.g. Sophos Firewall), a `CNAME` is resolved to an IP and managed as an **A** record — created, displayed, and verified as type A.
 
-Use the reserved plugin name **`all`** (e.g. `ext-dns.all.hostname`) to publish a
-record to **every configured provider** at once. An explicit `ext-dns.<plugin>.*`
-record for the same hostname takes precedence over the general one for that
-provider. (Don't name a real provider `all`.)
+In addition, **Traefik integration** reads Traefik's own labels (no `ext-dns.*` labels needed):
+
+| Label | Description |
+|---|---|
+| `traefik.http.routers.<router>.rule` | Each hostname inside a `Host(`...`)` matcher becomes a record (a CNAME to the Traefik host, or an A record on providers without CNAME support) |
+| `traefik.docker.network` | Parsed but currently unused (reserved for a future A-record mode) |
 
 ## Traefik integration
 
-When enabled per plugin (see Configuration), docker-ext-dns also reads Traefik
-router labels and creates a **CNAME** record for each routed hostname, pointing
-at your Traefik host. No `ext-dns.*` labels are needed for these — just your
-existing Traefik labels:
+Traefik integration is **provider-independent and enabled by default**: docker-ext-dns
+reads Traefik router labels and creates a record for each routed hostname — for
+**every configured provider** — pointing at your Traefik host. No `ext-dns.*`
+labels are needed; just your existing Traefik labels:
 
 ```yaml
 my-app:
   image: nginx:alpine
   labels:
     traefik.http.routers.my-app.rule: Host(`app.lan`)
-    # → CNAME app.lan -> <traefik hostname>
+    # → CNAME app.lan -> <traefik hostname>  (A record on providers without CNAME support)
 ```
 
 - Every hostname inside `Host(`...`)` is extracted, including `Host(`a`, `b`)`
   and `Host(`a`) || Host(`b`)` forms.
-- The CNAME target is the per-plugin `traefik.hostname` from config, or — if
-  omitted — auto-discovered from the first `Host(`...`)` rule on a container
-  whose name contains `traefik`.
+- The CNAME target is the global `traefik.hostname` from config, or — if omitted —
+  auto-discovered from the first `Host(`...`)` rule on a container whose name
+  contains `traefik`.
 - `ext-dns.*` labels take precedence: if a container defines an `ext-dns` record
-  for the same hostname, the Traefik CNAME for that hostname is skipped.
-- Opt a container out with `ext-dns.<plugin>.traefik: "false"`.
+  for the same hostname, the Traefik record for that hostname is skipped.
+- **Disable it globally** with `traefik.enabled: false`, **per provider** with
+  `plugins.<name>.traefik: false`, or **per container/provider** with the
+  `ext-dns.<plugin>.traefik: "false"` label.
 - The `traefik.docker.network` label is parsed but currently unused (CNAMEs need
   no container IP); it is reserved for a future A-record mode.
 
@@ -96,13 +105,19 @@ my-app:
 interval: 30            # seconds between reconcile loops (minimum 5)
 change_concurrency: 2   # max record changes applied at once (throttles large diffs)
 change_delay: 0         # optional seconds to pause after each change
+traefik:                # provider-independent Traefik integration (applies to all providers)
+  enabled: true         # default true; set false to disable globally
+  hostname: traefik.lan # optional; auto-discovered from a *traefik* container if omitted
 plugins:
   pihole:
     url: http://pihole:80
-    password: secret  # omit if Pi-hole has no password
-    traefik:          # optional — enable Traefik label integration for this plugin
-      enabled: true
-      hostname: traefik.lan   # optional; auto-discovered from a *traefik* container if omitted
+    password: secret    # omit if Pi-hole has no password
+  sophos-firewall:
+    hostname: 10.0.0.1
+    username: ext-dns
+    password: secret
+    insecure: true
+    traefik: false      # optional — disable Traefik integration for just this provider
 web:
   port: 8080
 ```
@@ -157,11 +172,24 @@ The web UI auto-discovers these instances from `/api/instances` on every load. R
 
 ### Pi-hole (v6)
 
-Config keys: `url`, `password` (optional if no auth set), `insecure` (default `false`).
-
-Set `insecure: true` to skip TLS certificate verification when Pi-hole is behind a self-signed certificate.
-
 Manages records via `PUT`/`DELETE /api/config/dns%2Fhosts/{value}` and `dns%2FcnameRecords/{value}`.
+
+Config keys:
+
+| key | required | default | description |
+|---|---|---|---|
+| `url` | yes | — | Pi-hole base URL, e.g. `http://pihole:80` or `https://pihole:443` |
+| `password` | no | — | Pi-hole web/app password; omit if no auth is set |
+| `insecure` | no | `false` | skip TLS verification (self-signed certificate) |
+
+Prerequisites on Pi-hole (Settings → All settings → Webserver and API):
+
+- **Enable `webserver.api.app_sudo`** — required for the API to modify local DNS
+  (`dns/hosts` and `dns/cnameRecords`). Without it, reads work but record
+  create/update/delete is rejected.
+- **Set an application password (`webserver.api.app_pwhash`)** and use that app
+  password as the provider's `password`, so docker-ext-dns authenticates with a
+  dedicated credential instead of the main web-UI password.
 
 ### Sophos Firewall (SFOS v22.0+)
 

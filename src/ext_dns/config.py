@@ -8,6 +8,14 @@ class WebConfig(BaseModel):
     port: int = 8080
 
 
+class TraefikConfig(BaseModel):
+    # Traefik integration is provider-independent: when enabled (the default) it
+    # applies to every configured provider. Disable it globally here, or per
+    # provider via `plugins.<name>.traefik: false`.
+    enabled: bool = True
+    hostname: str | None = None  # optional; auto-discovered from a *traefik* container if omitted
+
+
 class RemoteInstanceConfig(BaseModel):
     name: str
     url: str
@@ -18,6 +26,7 @@ class AppConfig(BaseModel):
     interval: int = Field(30, ge=5)
     plugins: dict[str, dict] = Field(default_factory=dict)
     web: WebConfig = Field(default_factory=WebConfig)
+    traefik: TraefikConfig = Field(default_factory=TraefikConfig)
     instances: list[RemoteInstanceConfig] = Field(default_factory=list)
     # Throttle how fast record changes are applied so a large diff does not
     # overload the DNS backend (e.g. Pi-hole).

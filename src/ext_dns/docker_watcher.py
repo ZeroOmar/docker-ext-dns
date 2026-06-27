@@ -172,8 +172,9 @@ class DockerWatcher:
         self._docker_url = docker_url or "unix://var/run/docker.sock"
         self._on_state_change = on_state_change
         self._client: docker.DockerClient | None = None
-        # { plugin_name: {"hostname": str | None} } for plugins with Traefik
-        # integration enabled (filtered in main.py). Empty => feature off.
+        # { plugin_name: {"hostname": str | None} } for every configured provider
+        # with Traefik integration enabled (provider-independent; resolved in
+        # main.py). Empty => feature off (globally or no providers enabled).
         self._traefik: dict[str, dict] = traefik or {}
 
     def _get_client(self) -> docker.DockerClient:

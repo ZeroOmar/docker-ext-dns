@@ -18,6 +18,20 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _provider_traefik(pcfg, global_hostname: str | None) -> tuple[bool, str | None]:
+    """Resolve a provider's Traefik integration to (enabled, hostname). Enabled by
+    default; a provider opts out with `traefik: false` (or `traefik: {enabled: false}`)
+    and may override the CNAME target with `traefik: {hostname: ...}`."""
+    t = pcfg.get("traefik") if isinstance(pcfg, dict) else None
+    if t is None:
+        return True, global_hostname
+    if isinstance(t, bool):
+        return t, global_hostname
+    if isinstance(t, dict):
+        return bool(t.get("enabled", True)), t.get("hostname") or global_hostname
+    return True, global_hostname
+
+
 async def _run_with_restart(coro_fn, label: str, restart_delay: int = 5) -> None:
     while True:
         try:
@@ -44,18 +58,25 @@ async def _main() -> None:
         change_delay=config.change_delay,
     )
 
+    # Traefik integration is provider-independent: when globally enabled (the
+    # default) it applies to every configured provider, unless a provider opts out
+    # with `plugins.<name>.traefik: false`. The CNAME target is the global
+    # `traefik.hostname` (auto-discovered if unset), overridable per provider.
     traefik_cfg: dict[str, dict] = {}
-    for plugin_name, pcfg in config.plugins.items():
-        t = pcfg.get("traefik") if isinstance(pcfg, dict) else None
-        if isinstance(t, dict) and t.get("enabled"):
-            traefik_cfg[plugin_name] = {"hostname": t.get("hostname")}
+    if config.traefik.enabled:
+        for plugin_name, pcfg in config.plugins.items():
+            enabled, hostname = _provider_traefik(pcfg, config.traefik.hostname)
+            if enabled:
+                traefik_cfg[plugin_name] = {"hostname": hostname}
 
     watcher = DockerWatcher(
         on_state_change=reconciler.trigger_reconcile, traefik=traefik_cfg
     )
     reconciler.set_watcher(watcher)
     if traefik_cfg:
-        log.info("Traefik integration enabled for plugins: %s", list(traefik_cfg))
+        log.info("Traefik integration enabled for providers: %s", list(traefik_cfg))
+    else:
+        log.info("Traefik integration disabled")
 
     app = build_app(reconciler, config)
     server_config = uvicorn.Config(

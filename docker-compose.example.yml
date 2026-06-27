@@ -7,19 +7,20 @@ services:
     environment:
       EXT_DNS_CONFIG: |
         interval: 30
+        traefik:                   # provider-independent Traefik integration (applies to all providers)
+          enabled: true            # default true; set false to disable globally
+          hostname: traefik.lan    # optional; auto-discovered from a *traefik* container if omitted
         plugins:
           pihole:
             url: http://pihole:80
             password: your-pihole-password
-            traefik:               # optional: create CNAMEs from Traefik router labels
-              enabled: true
-              hostname: traefik.lan # optional; auto-discovered from a *traefik* container if omitted
           sophos-firewall:         # optional: manage Sophos Firewall (SFOS v22+) DNS host entries
             hostname: 10.0.0.1
             port: 4444
             username: ext-dns
             password: your-api-user-password
             insecure: true         # self-signed cert
+            # traefik: false       # optional; disable Traefik integration for just this provider
             # min_os_major: 22     # optional; refuse to operate below this SFOS major version
             # ttl: 60              # optional; TTL for new A records
         web:
