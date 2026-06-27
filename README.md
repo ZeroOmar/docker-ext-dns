@@ -59,6 +59,11 @@ services:
 
 Multiple plugins per container are supported.
 
+Use the reserved plugin name **`all`** (e.g. `ext-dns.all.hostname`) to publish a
+record to **every configured provider** at once. An explicit `ext-dns.<plugin>.*`
+record for the same hostname takes precedence over the general one for that
+provider. (Don't name a real provider `all`.)
+
 ## Traefik integration
 
 When enabled per plugin (see Configuration), docker-ext-dns also reads Traefik
@@ -158,11 +163,60 @@ Set `insecure: true` to skip TLS certificate verification when Pi-hole is behind
 
 Manages records via `PUT`/`DELETE /api/config/dns%2Fhosts/{value}` and `dns%2FcnameRecords/{value}`.
 
+### Sophos Firewall (SFOS v22.0+)
+
+Manages **DNS host entries** (*Configure → Network → DNS*) via the on-box XML API,
+using the official [`sophosfirewall-python`](https://github.com/sophos/sophos-firewall-sdk) SDK.
+
+Config keys:
+
+| key | required | default | description |
+|---|---|---|---|
+| `hostname` | yes | — | firewall host/IP |
+| `username` / `password` | yes | — | API user account |
+| `port` | no | `4444` | admin/API port |
+| `insecure` | no | `false` | skip TLS verification (firewalls use self-signed certs) |
+| `min_os_major` | no | `22` | minimum acceptable SFOS major version |
+| `ttl` | no | `60` | TTL for new A records (matches the firewall UI default) |
+
+```yaml
+plugins:
+  sophos-firewall:
+    hostname: 10.0.0.1
+    port: 4444
+    username: ext-dns
+    password: secret
+    insecure: true     # self-signed cert
+    min_os_major: 22
+    ttl: 60
+```
+
+Prerequisites on the firewall:
+
+- Enable API access and add the docker-ext-dns host to the allowed IP list under
+  *Administration → API access*.
+- The API user needs read access to system/network and write access to DNS host entries.
+
+Behavior notes:
+
+- **Compatibility check (fail closed):** on first use the provider reads the SFOS
+  major version from the API and, if it is below `min_os_major`, refuses all record
+  operations and reports unhealthy (red in the UI). The same happens if the firewall
+  is unreachable or credentials are wrong.
+- **No CNAMEs → A records:** Sophos DNS host entries support only A/AAAA/PTR. A
+  desired CNAME (including Traefik-generated ones) is resolved to an IP and managed
+  as an **A record** — it is created, displayed, and verified as type A.
+- **Reverse DNS (PTR):** entries are created with reverse lookup enabled (so a PTR is
+  added, like Pi-hole does for the first unique A record). If the PTR clashes with an
+  existing entry, the provider retries without it so the A record still lands.
+
 ### Adding a new provider
 
 1. Subclass `ext_dns.providers.base.DNSProvider`
 2. Implement `name`, `list_records`, `create_record`, `update_record`, `delete_record`
-3. Add one entry to `_REGISTRY` in `ext_dns/providers/__init__.py`
+3. If the backend can't store CNAMEs, set `supports_cname = False` — the reconciler will
+   resolve desired CNAMEs to an IP and manage them as A records for you
+4. Add one entry to `_REGISTRY` in `ext_dns/providers/__init__.py`
 
 ## Development
 

@@ -6,7 +6,7 @@ from typing import Optional
 import dns.exception
 import dns.resolver
 
-from ext_dns.docker_watcher import DockerWatcher
+from ext_dns.docker_watcher import GENERAL_PLUGIN_KEY, DockerWatcher
 from ext_dns.models import (
     ContainerRecord,
     DNSRecord,
@@ -69,10 +69,18 @@ class Reconciler:
 
         desired = await asyncio.to_thread(self._watcher.get_desired_state)
 
-        # Build desired set: (plugin, hostname) -> (DNSRecord, container_id, container_name)
+        # Build desired set: (plugin, hostname) -> (DNSRecord, container_id, container_name).
+        # Records under the reserved `all` key apply to every configured provider,
+        # but only where no explicit per-provider record covers the same
+        # (provider, hostname). Collect explicit records first, then expand `all`.
         desired_records: dict[tuple[str, str], tuple[DNSRecord, str, str]] = {}
+        general: list[tuple[DNSRecord, str, str]] = []
         for container_id, (container_name, _short_id, plugin_records) in desired.items():
             for plugin_name, records in plugin_records.items():
+                if plugin_name == GENERAL_PLUGIN_KEY:
+                    for record in records:
+                        general.append((record, container_id, container_name))
+                    continue
                 if plugin_name not in self._providers:
                     log.warning(
                         "Container '%s' references unconfigured plugin '%s', skipping",
@@ -80,9 +88,25 @@ class Reconciler:
                     )
                     continue
                 for record in records:
-                    desired_records[(plugin_name, record.hostname)] = (
-                        record, container_id, container_name,
+                    converted = await self._to_provider_record(plugin_name, record)
+                    if converted is None:
+                        continue
+                    desired_records[(plugin_name, converted.hostname)] = (
+                        converted, container_id, container_name,
                     )
+
+        # Expand general (`all`) records to every configured provider; an explicit
+        # per-provider record for the same (provider, hostname) takes precedence.
+        for record, container_id, container_name in general:
+            for plugin_name in self._providers:
+                if (plugin_name, record.hostname) in desired_records:
+                    continue
+                converted = await self._to_provider_record(plugin_name, record)
+                if converted is None:
+                    continue
+                desired_records[(plugin_name, converted.hostname)] = (
+                    converted, container_id, container_name,
+                )
 
         # Build actual set per provider
         actual_records: dict[tuple[str, str], DNSRecord] = {}
@@ -261,6 +285,47 @@ class Reconciler:
             log.info("Deleted record '%s' via %s", hostname, plugin_name)
         except Exception as exc:
             log.error("Failed to delete record '%s' via %s: %s", hostname, plugin_name, exc, exc_info=True)
+
+    async def _to_provider_record(
+        self, plugin_name: str, record: DNSRecord
+    ) -> Optional[DNSRecord]:
+        """Adapt a desired record to what the target provider can store. Providers
+        that can't hold CNAMEs (``supports_cname = False``) get the CNAME resolved
+        to an IP and managed as an A record instead — so it is created, displayed,
+        reconciled and verified as an A record everywhere. Returns None (skip) if a
+        CNAME target can't be resolved."""
+        provider = self._providers[plugin_name]
+        if record.record_type == RecordType.CNAME and not provider.supports_cname:
+            ip = await self._resolve_a(record.value)
+            if ip is None:
+                log.warning(
+                    "Plugin '%s': provider has no CNAME support and target '%s' "
+                    "for '%s' could not be resolved to an IP; skipping",
+                    plugin_name, record.value, record.hostname,
+                )
+                return None
+            log.debug(
+                "Plugin '%s': converting CNAME '%s' -> '%s' to A record %s",
+                plugin_name, record.hostname, record.value, ip,
+            )
+            return DNSRecord(
+                hostname=record.hostname,
+                record_type=RecordType.A,
+                value=ip,
+                source=record.source,
+            )
+        return record
+
+    async def _resolve_a(self, target: str) -> Optional[str]:
+        loop = asyncio.get_running_loop()
+        try:
+            answers = await loop.run_in_executor(
+                None, lambda: dns.resolver.resolve(target, "A")
+            )
+            return answers[0].to_text().rstrip(".")
+        except Exception as exc:
+            log.debug("Failed to resolve '%s' to an A record: %s", target, exc)
+            return None
 
     async def _verify_record(self, key: str, record: ContainerRecord) -> None:
         record.dns_status = DNSVerificationStatus.CHECKING

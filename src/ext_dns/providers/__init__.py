@@ -1,8 +1,10 @@
 from ext_dns.providers.base import DNSProvider
 from ext_dns.providers.pihole import PiholeProvider
+from ext_dns.providers.sophos import SophosFirewallProvider
 
 _REGISTRY: dict[str, type[DNSProvider]] = {
     "pihole": PiholeProvider,
+    "sophos-firewall": SophosFirewallProvider,
 }
 
 

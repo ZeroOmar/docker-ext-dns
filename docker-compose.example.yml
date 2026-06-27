@@ -14,6 +14,14 @@ services:
             traefik:               # optional: create CNAMEs from Traefik router labels
               enabled: true
               hostname: traefik.lan # optional; auto-discovered from a *traefik* container if omitted
+          sophos-firewall:         # optional: manage Sophos Firewall (SFOS v22+) DNS host entries
+            hostname: 10.0.0.1
+            port: 4444
+            username: ext-dns
+            password: your-api-user-password
+            insecure: true         # self-signed cert
+            # min_os_major: 22     # optional; refuse to operate below this SFOS major version
+            # ttl: 60              # optional; TTL for new A records
         web:
           port: 8080
     volumes:
@@ -36,6 +44,14 @@ services:
       ext-dns.pihole.hostname: alias.lan
       ext-dns.pihole.type: CNAME
       ext-dns.pihole.target: my-service.lan
+
+  # Example record published to ALL configured providers via the reserved `all` key.
+  # On providers without CNAME support (e.g. Sophos), CNAMEs are resolved to an A record.
+  my-shared-service:
+    image: nginx:alpine
+    labels:
+      ext-dns.all.hostname: shared.lan
+      ext-dns.all.type: A
 
   # Example Traefik-routed service — a CNAME app.lan -> traefik.lan is created
   # automatically from the router rule (no ext-dns labels needed).

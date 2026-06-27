@@ -13,6 +13,11 @@ log = logging.getLogger(__name__)
 LABEL_PREFIX = "ext-dns"
 TRAEFIK_LABEL_PREFIX = "traefik"
 
+# Reserved "plugin" name: labels under `ext-dns.all.*` publish a record to every
+# configured provider (expanded by the reconciler). A real provider must not be
+# named this.
+GENERAL_PLUGIN_KEY = "all"
+
 # Traefik router rules look like: Host(`a.lan`) || (Host(`b.lan`, `c.lan`) && PathPrefix(`/x`))
 _HOST_RULE_RE = re.compile(r"Host\(([^)]*)\)")  # capture the args inside Host( ... )
 _HOST_ARG_RE = re.compile(r"`([^`]+)`")  # each backtick-quoted hostname

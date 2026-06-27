@@ -4,6 +4,12 @@ from ext_dns.models import DNSRecord
 
 
 class DNSProvider(ABC):
+    # Whether this provider can natively store CNAME records. Providers that
+    # cannot (e.g. Sophos Firewall DNS host entries, which support only A/AAAA/
+    # PTR) set this to False; the reconciler then resolves desired CNAMEs to an
+    # IP and manages them as A records instead.
+    supports_cname: bool = True
+
     def __init__(self, config: dict) -> None:
         self.config = config
 
