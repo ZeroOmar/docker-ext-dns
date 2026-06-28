@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docker-ext-dns"
-version = "0.9.0"
+version = "0.9.1"
 description = "DNS record manager for Docker Compose environments"
 requires-python = ">=3.11"
 dependencies = [

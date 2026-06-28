@@ -137,13 +137,9 @@
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(255,255,255,0.02); }
 
-  /* Consecutive rows sharing a hostname have that cell merged (rowspan).
-     The merged cell sits at the top of its span and carries the group's
-     bottom border so the rows inside read as one block. */
-  td.hostname-cell {
-    vertical-align: top;
-    border-right: 1px solid var(--border);
-  }
+  /* Grouped view collapses a hostname's records into one row; when a column
+     holds several distinct values they are joined by this muted separator. */
+  .cell-sep { color: var(--text-muted); opacity: 0.5; margin: 0 1px; }
 
   .badge {
     display: inline-flex;
@@ -482,9 +478,10 @@ function cmp(a, b, key) {
 }
 
 // Grouped (the default, and whenever Hostname is the sort column): rows are
-// ordered by hostname so identical hostnames stay adjacent and merge into one
-// cell. Sorting by any other column switches to a flat global sort, which
-// pulls same-hostname rows apart and unmerges them — click Hostname to regroup.
+// ordered by hostname so identical hostnames stay adjacent and collapse into a
+// single row (each column showing its distinct values). Sorting by any other
+// column switches to a flat global sort showing one record per row — click
+// Hostname to regroup.
 function isGrouped() {
   return sortKey === null || sortKey === 'hostname';
 }
@@ -554,39 +551,73 @@ function renderTable(records) {
     return;
   }
   empty.classList.add('hidden');
-  const grouped = isGrouped();
   let html = '';
-  for (let i = 0; i < records.length; i++) {
-    const r = records[i];
-    // When grouped, the first row of a hostname run renders a cell spanning the
-    // run and the rest omit it; ungrouped, every row carries its own hostname.
-    let hostCell;
-    if (grouped) {
-      const firstOfGroup = i === 0 || records[i - 1].hostname !== r.hostname;
-      if (firstOfGroup) {
-        let span = 0;
-        while (i + span < records.length && records[i + span].hostname === r.hostname) span++;
-        hostCell = `<td class="mono hostname-cell" rowspan="${span}">${esc(r.hostname)}</td>`;
-      } else {
-        hostCell = '';
-      }
-    } else {
-      hostCell = `<td class="mono">${esc(r.hostname)}</td>`;
+  if (isGrouped()) {
+    // Collapse each hostname's records into one row, deduping per column.
+    for (let i = 0; i < records.length; ) {
+      const host = records[i].hostname;
+      let j = i;
+      while (j < records.length && records[j].hostname === host) j++;
+      html += groupedRow(records.slice(i, j), host);
+      i = j;
     }
-    html += `
+  } else {
+    for (const r of records) html += flatRow(r);
+  }
+  tbody.innerHTML = html;
+}
+
+// Distinct values of `field` across the group, preserving first-seen order.
+function distinct(group, field) {
+  return [...new Set(group.map(field))];
+}
+
+// Join distinct rendered fragments with a muted separator.
+const CELL_SEP = ' <span class="cell-sep">-</span> ';
+function joinCells(parts) { return parts.join(CELL_SEP); }
+
+// A single record rendered as its own row (ungrouped / flat sort).
+function flatRow(r) {
+  return `
     <tr>
       <td><span class="instance-label">${esc(r._instance)}</span></td>
       <td>${esc(r.container_name)}</td>
       <td>${esc(r.plugin)}</td>
-      ${hostCell}
+      <td class="mono">${esc(r.hostname)}</td>
       <td><span class="type-badge ${esc(r.record_type)}">${esc(r.record_type)}</span></td>
       <td class="mono">${esc(r.value)}</td>
       <td><span class="source-badge ${esc(r.source)}">${esc(r.source)}</span></td>
       <td style="color:var(--text-muted)">${fmtDate(r.last_updated)}</td>
       <td>${statusBadge(r.dns_status)}</td>
     </tr>`;
-  }
-  tbody.innerHTML = html;
+}
+
+// All records sharing `host` collapsed into one row; each cell shows the
+// distinct values for that column (a single value when they all match).
+function groupedRow(group, host) {
+  const instances = joinCells(distinct(group, r => r._instance)
+    .map(v => `<span class="instance-label">${esc(v)}</span>`));
+  const containers = joinCells(distinct(group, r => r.container_name).map(esc));
+  const plugins = joinCells(distinct(group, r => r.plugin).map(esc));
+  const types = joinCells(distinct(group, r => r.record_type)
+    .map(v => `<span class="type-badge ${esc(v)}">${esc(v)}</span>`));
+  const values = joinCells(distinct(group, r => r.value).map(esc));
+  const sources = joinCells(distinct(group, r => r.source)
+    .map(v => `<span class="source-badge ${esc(v)}">${esc(v)}</span>`));
+  const updated = joinCells(distinct(group, r => fmtDate(r.last_updated)));
+  const statuses = joinCells(distinct(group, r => r.dns_status).map(statusBadge));
+  return `
+    <tr>
+      <td>${instances}</td>
+      <td>${containers}</td>
+      <td>${plugins}</td>
+      <td class="mono">${esc(host)}</td>
+      <td>${types}</td>
+      <td class="mono">${values}</td>
+      <td>${sources}</td>
+      <td style="color:var(--text-muted)">${updated}</td>
+      <td>${statuses}</td>
+    </tr>`;
 }
 
 function statusBadge(status) {
