@@ -137,6 +137,14 @@
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(255,255,255,0.02); }
 
+  /* Consecutive rows sharing a hostname have that cell merged (rowspan).
+     The merged cell sits at the top of its span and carries the group's
+     bottom border so the rows inside read as one block. */
+  td.hostname-cell {
+    vertical-align: top;
+    border-right: 1px solid var(--border);
+  }
+
   .badge {
     display: inline-flex;
     align-items: center;
@@ -473,10 +481,21 @@ function cmp(a, b, key) {
     String(b[key] ?? ''), undefined, { numeric: true, sensitivity: 'base' });
 }
 
+// Grouped (the default, and whenever Hostname is the sort column): rows are
+// ordered by hostname so identical hostnames stay adjacent and merge into one
+// cell. Sorting by any other column switches to a flat global sort, which
+// pulls same-hostname rows apart and unmerges them — click Hostname to regroup.
+function isGrouped() {
+  return sortKey === null || sortKey === 'hostname';
+}
+
 function sortRecords(records) {
   const recs = records.slice();
-  if (sortKey === null) {
-    recs.sort((a, b) => cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
+  if (isGrouped()) {
+    const hostDir = sortKey === 'hostname' ? sortDir : 1;
+    recs.sort((a, b) =>
+      hostDir * cmp(a, b, 'hostname')
+      || cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
   } else {
     recs.sort((a, b) =>
       sortDir * cmp(a, b, sortKey)
@@ -535,19 +554,39 @@ function renderTable(records) {
     return;
   }
   empty.classList.add('hidden');
-  tbody.innerHTML = records.map(r => `
+  const grouped = isGrouped();
+  let html = '';
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    // When grouped, the first row of a hostname run renders a cell spanning the
+    // run and the rest omit it; ungrouped, every row carries its own hostname.
+    let hostCell;
+    if (grouped) {
+      const firstOfGroup = i === 0 || records[i - 1].hostname !== r.hostname;
+      if (firstOfGroup) {
+        let span = 0;
+        while (i + span < records.length && records[i + span].hostname === r.hostname) span++;
+        hostCell = `<td class="mono hostname-cell" rowspan="${span}">${esc(r.hostname)}</td>`;
+      } else {
+        hostCell = '';
+      }
+    } else {
+      hostCell = `<td class="mono">${esc(r.hostname)}</td>`;
+    }
+    html += `
     <tr>
       <td><span class="instance-label">${esc(r._instance)}</span></td>
       <td>${esc(r.container_name)}</td>
       <td>${esc(r.plugin)}</td>
-      <td class="mono">${esc(r.hostname)}</td>
+      ${hostCell}
       <td><span class="type-badge ${esc(r.record_type)}">${esc(r.record_type)}</span></td>
       <td class="mono">${esc(r.value)}</td>
       <td><span class="source-badge ${esc(r.source)}">${esc(r.source)}</span></td>
       <td style="color:var(--text-muted)">${fmtDate(r.last_updated)}</td>
       <td>${statusBadge(r.dns_status)}</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }
+  tbody.innerHTML = html;
 }
 
 function statusBadge(status) {
