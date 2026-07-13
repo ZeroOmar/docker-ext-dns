@@ -55,6 +55,12 @@
     transition: background 0.15s;
   }
   button:hover { background: var(--border); }
+  button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  button.active:hover { background: var(--accent); }
 
   .tabs {
     background: var(--surface);
@@ -245,6 +251,7 @@
       <option value="checking">Checking</option>
       <option value="pending">Pending</option>
     </select>
+    <button id="groupToggle" onclick="toggleGroup()">⊞ Group by hostname</button>
     <span class="count" id="recordCount"></span>
   </div>
   <div class="table-wrap">
@@ -280,6 +287,7 @@ let activeTab = 'all';
 let instances = [];   // populated on each refresh from server
 let sortKey = null;   // null = default order (instance, then container)
 let sortDir = 1;      // 1 = ascending, -1 = descending
+let grouped = true;   // collapse records sharing a hostname into one row
 
 const LOCAL = { name: 'local', proxied: false };
 const GITHUB_TAGS_URL = 'https://api.github.com/repos/ZeroOmar/docker-ext-dns/tags';
@@ -463,7 +471,7 @@ function applyFilters() {
   if (activeTab !== 'all') records = records.filter(r => r._instance === activeTab);
   if (pluginFilter)  records = records.filter(r => r.plugin === pluginFilter);
   if (statusFilter)  records = records.filter(r => r.dns_status === statusFilter);
-  records = sortRecords(records);
+  if (!grouped) records = sortRecords(records);
   renderTable(records);
   document.getElementById('recordCount').textContent =
     records.length + ' record' + (records.length !== 1 ? 's' : '');
@@ -477,28 +485,71 @@ function cmp(a, b, key) {
     String(b[key] ?? ''), undefined, { numeric: true, sensitivity: 'base' });
 }
 
-// Grouped (the default, and whenever Hostname is the sort column): rows are
-// ordered by hostname so identical hostnames stay adjacent and collapse into a
-// single row (each column showing its distinct values). Sorting by any other
-// column switches to a flat global sort showing one record per row — click
-// Hostname to regroup.
-function isGrouped() {
-  return sortKey === null || sortKey === 'hostname';
-}
-
+// Flat sort (ungrouped view): one record per row, ordered by the active sort
+// column, tie-broken by instance then container. A null sortKey keeps the
+// default instance/container order.
 function sortRecords(records) {
   const recs = records.slice();
-  if (isGrouped()) {
-    const hostDir = sortKey === 'hostname' ? sortDir : 1;
-    recs.sort((a, b) =>
-      hostDir * cmp(a, b, 'hostname')
-      || cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
-  } else {
-    recs.sort((a, b) =>
-      sortDir * cmp(a, b, sortKey)
-      || cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
-  }
+  recs.sort((a, b) =>
+    (sortKey ? sortDir * cmp(a, b, sortKey) : 0)
+    || cmp(a, b, '_instance') || cmp(a, b, 'container_name'));
   return recs;
+}
+
+// Group records by hostname. Members within a group are kept in a fixed,
+// sort-independent order (instance → container → type → value) so a hostname's
+// collapsed values always render as "A - B", never "B - A", no matter which
+// column the table is sorted by.
+function intraGroupCmp(a, b) {
+  return cmp(a, b, '_instance') || cmp(a, b, 'container_name')
+    || cmp(a, b, 'record_type') || cmp(a, b, 'value');
+}
+
+function buildGroups(records) {
+  const map = new Map();
+  for (const r of records) {
+    if (!map.has(r.hostname)) map.set(r.hostname, []);
+    map.get(r.hostname).push(r);
+  }
+  return [...map.entries()].map(([host, recs]) => ({
+    host, records: recs.slice().sort(intraGroupCmp),
+  }));
+}
+
+// A group's representative value for the active sort column: the most recent
+// timestamp for Last Updated, otherwise the group's distinct values joined so
+// groups order sensibly by that column even when a cell holds several values.
+function groupValue(group, key) {
+  if (key === 'last_updated') {
+    return group.records.reduce(
+      (max, r) => Math.max(max, new Date(r.last_updated || 0).getTime()), 0);
+  }
+  return distinct(group.records, r => r[key]).join(' ');
+}
+
+function cmpGroups(a, b, key) {
+  if (key === 'last_updated') return groupValue(a, key) - groupValue(b, key);
+  return String(groupValue(a, key)).localeCompare(
+    String(groupValue(b, key)), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+// Grouped view: sort the hostname groups by the active column (default and
+// tie-break by hostname), independent of grouping itself.
+function sortGroups(groups) {
+  const key = sortKey || 'hostname';
+  const dir = sortKey ? sortDir : 1;
+  return groups.slice().sort((a, b) =>
+    dir * cmpGroups(a, b, key) || cmpGroups(a, b, 'hostname'));
+}
+
+function toggleGroup() {
+  grouped = !grouped;
+  updateGroupToggle();
+  applyFilters();
+}
+
+function updateGroupToggle() {
+  document.getElementById('groupToggle').classList.toggle('active', grouped);
 }
 
 function setupSorting() {
@@ -552,14 +603,10 @@ function renderTable(records) {
   }
   empty.classList.add('hidden');
   let html = '';
-  if (isGrouped()) {
+  if (grouped) {
     // Collapse each hostname's records into one row, deduping per column.
-    for (let i = 0; i < records.length; ) {
-      const host = records[i].hostname;
-      let j = i;
-      while (j < records.length && records[j].hostname === host) j++;
-      html += groupedRow(records.slice(i, j), host);
-      i = j;
+    for (const g of sortGroups(buildGroups(records))) {
+      html += groupedRow(g.records, g.host);
     }
   } else {
     for (const r of records) html += flatRow(r);
@@ -641,6 +688,7 @@ function esc(s) {
 }
 
 setupSorting();
+updateGroupToggle();
 loadVersion();
 refresh();
 setInterval(refresh, 30000);
