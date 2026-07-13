@@ -14,7 +14,7 @@ Watches running containers, reads `ext-dns.*` labels, and automatically creates,
 - Modular provider system — add new DNS backends by implementing one interface
 - DNS verification: checks whether each record actually resolves after creation
 - Source of truth: a managed name is fully replaced on create (any conflicting A/CNAME of the same name is removed first)
-- Web UI with multi-instance aggregation, a per-record source badge (ext-dns / traefik), a sortable records table, and version indicators that flag (for the local instance and every connected one) when a newer release is available on GitHub
+- Web UI with multi-instance aggregation, a per-record source badge (ext-dns / traefik), a sortable records table that can group records by hostname (toggleable), and version indicators that flag (for the local instance and every connected one) when a newer release is available on GitHub
 
 ## Quick Start
 

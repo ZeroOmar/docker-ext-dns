@@ -5,228 +5,312 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>docker-ext-dns</title>
 <style>
+  /* Design language: HashiCorp dark marketing/product system, Vault identity.
+     Near-black canvas, charcoal surface lift, 1px translucent hairlines, one
+     type family across the hierarchy (500 body / 600 emphasis / 700 display)
+     with tight display + relaxed body line-heights. Vault yellow is the single
+     product-identity accent; hyperlink blue is the only other chromatic voice. */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --border: #2a2d3a;
-    --text: #e2e8f0;
-    --text-muted: #64748b;
-    --accent: #3b82f6;
-    --green: #22c55e;
-    --red: #ef4444;
-    --amber: #f59e0b;
-    --orange: #f97316;
-    --grey: #475569;
-    --radius: 6px;
+    --canvas: #000000;
+    --surface-1: #15181e;
+    --surface-2: #1f232b;
+    --surface-3: #3b3d45;
+    --hairline: rgba(178,182,189,0.12);
+    --hairline-soft: rgba(178,182,189,0.06);
+
+    --ink: #ffffff;
+    --ink-muted: #b2b6bd;
+    --ink-subtle: #656a76;
+    --text-muted: #656a76;            /* alias consumed by inline row styles */
+
+    --accent-blue: #2b89ff;           /* hyperlinks */
+    --vault: #ffcf25;                 /* product identity accent */
+    --vault-ink: #000000;             /* readable text on Vault yellow */
+
+    --success: #00ca8e;
+    --warning: #ffcf25;
+    --error: #e62b1e;
+
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --r-pill: 9999px;
+
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
   }
 
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font);
     font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
 
+  /* top-nav ---------------------------------------------------------------- */
   header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 20px;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+    height: 64px;
+    padding: 0 32px;
     display: flex;
     align-items: center;
     gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
-
-  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
-  header h1 span { color: var(--accent); }
-
-  .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-
-  button {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 12px;
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: 13px;
-    transition: background 0.15s;
-  }
-  button:hover { background: var(--border); }
-  button.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-  }
-  button.active:hover { background: var(--accent); }
-
-  .tabs {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 20px;
+  header h1 {
     display: flex;
-    gap: 2px;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+  }
+  .logo-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--r-sm);
+    background: var(--vault);
+    flex-shrink: 0;
+  }
+
+  .header-actions { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+  .header-actions .divider {
+    width: 1px;
+    height: 20px;
+    background: var(--hairline);
+  }
+
+  /* buttons: charcoal secondary CTA by default; the active group toggle lifts
+     into the Vault product accent as an identity signal. */
+  button {
+    font-family: var(--font);
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    color: var(--ink);
+    padding: 8px 16px;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.29;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  button:hover { background: var(--surface-3); }
+  button.active {
+    background: var(--vault);
+    border-color: var(--vault);
+    color: var(--vault-ink);
+  }
+  button.active:hover { background: var(--vault); filter: brightness(1.06); }
+
+  /* tabs ------------------------------------------------------------------- */
+  .tabs {
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+    padding: 0 32px;
+    display: flex;
+    gap: 4px;
     overflow-x: auto;
   }
-
   .tab {
-    padding: 10px 14px;
+    padding: 12px 14px;
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    color: var(--text-muted);
+    color: var(--ink-subtle);
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    transition: color 0.15s;
+    gap: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: color 0.15s, border-color 0.15s;
     user-select: none;
   }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--ink); border-bottom-color: var(--vault); }
   .tab .led {
     width: 7px; height: 7px; border-radius: 50%;
-    background: var(--grey); display: inline-block; flex-shrink: 0;
+    background: var(--surface-3); display: inline-block; flex-shrink: 0;
   }
-  .tab .led.ok  { background: var(--green); }
-  .tab .led.err { background: var(--red); }
-  .tab .led.outdated { background: var(--amber); }
+  .tab .led.ok  { background: var(--success); }
+  .tab .led.err { background: var(--error); }
+  .tab .led.outdated { background: var(--warning); }
 
-  main { padding: 20px; }
+  /* content ---------------------------------------------------------------- */
+  main { padding: 32px; max-width: 1440px; margin: 0 auto; }
+
+  .eyebrow {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.23;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--ink-subtle);
+    margin-bottom: 16px;
+  }
+
+  /* surface-1 charcoal card holding the toolbar + records table */
+  .panel {
+    background: var(--surface-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
 
   .toolbar {
     display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--hairline);
     flex-wrap: wrap;
     align-items: center;
   }
 
   .toolbar select {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 10px;
-    border-radius: var(--radius);
-    font-size: 13px;
+    font-family: var(--font);
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    color: var(--ink);
+    padding: 8px 12px;
+    border-radius: var(--r-md);
+    font-size: 14px;
+    font-weight: 500;
   }
+  .toolbar select:focus { outline: none; border-color: var(--accent-blue); }
 
-  .count { color: var(--text-muted); font-size: 13px; margin-left: auto; }
+  .count { color: var(--ink-subtle); font-size: 13px; margin-left: auto; letter-spacing: 0.2px; }
 
   .table-wrap { overflow-x: auto; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
+  /* column headers double as eyebrow-style category labels */
   th {
     text-align: left;
-    padding: 8px 12px;
-    color: var(--text-muted);
-    font-weight: 500;
-    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    color: var(--ink-subtle);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--hairline);
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
+    background: var(--surface-1);
   }
-  th:hover { color: var(--text); }
-  th .arrow { opacity: 0; margin-left: 4px; font-size: 10px; }
+  th:hover { color: var(--ink-muted); }
+  th .arrow { opacity: 0; margin-left: 4px; font-size: 9px; color: var(--vault); }
   th.sorted .arrow { opacity: 1; }
-  th.sorted { color: var(--text); }
+  th.sorted { color: var(--ink); }
 
   td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--hairline-soft);
     vertical-align: middle;
+    color: var(--ink);
   }
 
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: rgba(255,255,255,0.02); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(255,255,255,0.02); }
 
   /* Grouped view collapses a hostname's records into one row; when a column
      holds several distinct values they are joined by this muted separator. */
-  .cell-sep { color: var(--text-muted); opacity: 0.5; margin: 0 1px; }
+  .cell-sep { color: var(--ink-subtle); opacity: 0.6; margin: 0 2px; }
 
+  /* DNS status badges — semantic color on a matching translucent tint. */
   .badge {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 2px 8px;
-    border-radius: 99px;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: var(--r-pill);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.3px;
+    white-space: nowrap;
   }
   .badge::before {
     content: '';
     width: 6px; height: 6px; border-radius: 50%;
     background: currentColor;
-    opacity: 0.8;
   }
-  .badge.NOERROR  { background: #14532d; color: var(--green); }
-  .badge.NXDOMAIN { background: #7f1d1d; color: var(--red); }
-  .badge.MISMATCH { background: #431407; color: var(--orange); }
-  .badge.SERVFAIL { background: #451a03; color: var(--amber); }
-  .badge.checking { background: #1c1917; color: var(--amber); }
-  .badge.pending  { background: #1e293b; color: var(--grey); }
+  .badge.NOERROR  { background: rgba(0,202,142,0.14);  color: #34e2ad; }
+  .badge.NXDOMAIN { background: rgba(230,43,30,0.16);  color: #ff6b62; }
+  .badge.MISMATCH { background: rgba(187,90,0,0.24);   color: #ffab5e; }
+  .badge.SERVFAIL { background: rgba(255,207,37,0.14); color: var(--vault); }
+  .badge.checking { background: rgba(255,207,37,0.12); color: var(--vault); }
+  .badge.pending  { background: rgba(178,182,189,0.10); color: var(--ink-muted); }
 
   .type-badge {
-    background: #1e3a5f;
-    color: #93c5fd;
-    padding: 1px 7px;
-    border-radius: 4px;
+    background: rgba(43,137,255,0.14);
+    color: #7db4ff;
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.5px;
+    font-family: var(--mono);
   }
-  .type-badge.CNAME { background: #1e1b4b; color: #a5b4fc; }
+  .type-badge.CNAME { background: rgba(167,55,255,0.16); color: #c6a3ff; }
 
   .source-badge {
-    padding: 1px 7px;
-    border-radius: 4px;
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.5px;
-    background: #1e293b;
-    color: var(--grey);
+    background: var(--surface-3);
+    color: var(--ink-muted);
   }
-  .source-badge.traefik { background: #0e2a3a; color: #7dd3fc; }
+  .source-badge.traefik { background: rgba(20,198,203,0.14); color: #4fd6da; }
 
-  .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+  .mono { font-family: var(--mono); font-size: 12px; }
 
   .instance-label {
-    background: var(--border);
-    color: var(--text-muted);
-    padding: 1px 7px;
-    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--ink-muted);
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
     font-size: 11px;
+    font-weight: 500;
   }
 
   .empty {
     text-align: center;
     padding: 60px 20px;
-    color: var(--text-muted);
+    color: var(--ink-subtle);
   }
   .empty p { margin-top: 8px; font-size: 13px; }
   .hidden { display: none !important; }
 
-  .refresh-time { color: var(--text-muted); font-size: 12px; }
-  a.refresh-time { text-decoration: none; transition: color 0.15s; }
-  a.refresh-time:hover { color: var(--accent); }
-  .refresh-time.outdated { color: var(--red); }
-  a.refresh-time.outdated:hover { color: var(--red); text-decoration: underline; }
-  .header-actions .divider {
-    width: 1px;
-    align-self: stretch;
-    background: var(--border);
-    margin: 2px 2px;
+  .refresh-time { color: var(--ink-subtle); font-size: 13px; }
+  a.refresh-time { text-decoration: none; color: var(--accent-blue); transition: color 0.15s; }
+  a.refresh-time:hover { text-decoration: underline; }
+  .refresh-time.outdated { color: var(--error); }
+  a.refresh-time.outdated { color: var(--error); }
+  a.refresh-time.outdated:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    header, .tabs { padding-left: 16px; padding-right: 16px; }
+    main { padding: 20px 16px; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1><span>docker-ext-dns</span></h1>
+  <h1><span class="logo-dot"></span>docker-ext-dns</h1>
   <div class="header-actions">
     <span class="refresh-time" id="lastRefresh"></span>
     <span class="divider"></span>
@@ -238,42 +322,45 @@
 <div class="tabs" id="tabs"></div>
 
 <main>
-  <div class="toolbar">
-    <select id="filterPlugin" onchange="applyFilters()">
-      <option value="">All plugins</option>
-    </select>
-    <select id="filterStatus" onchange="applyFilters()">
-      <option value="">All statuses</option>
-      <option value="NOERROR">NOERROR</option>
-      <option value="NXDOMAIN">NXDOMAIN</option>
-      <option value="MISMATCH">MISMATCH</option>
-      <option value="SERVFAIL">SERVFAIL</option>
-      <option value="checking">Checking</option>
-      <option value="pending">Pending</option>
-    </select>
-    <button id="groupToggle" onclick="toggleGroup()">⊞ Group by hostname</button>
-    <span class="count" id="recordCount"></span>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr id="headRow">
-          <th data-key="_instance">Instance<span class="arrow"></span></th>
-          <th data-key="container_name">Container<span class="arrow"></span></th>
-          <th data-key="plugin">Plugin<span class="arrow"></span></th>
-          <th data-key="hostname">Hostname<span class="arrow"></span></th>
-          <th data-key="record_type">Type<span class="arrow"></span></th>
-          <th data-key="value">Value<span class="arrow"></span></th>
-          <th data-key="source">Source<span class="arrow"></span></th>
-          <th data-key="last_updated">Last Updated<span class="arrow"></span></th>
-          <th data-key="dns_status">DNS Status<span class="arrow"></span></th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div class="empty hidden" id="emptyState">
-      <div style="font-size:32px">🔍</div>
-      <p id="emptyMsg">No records found.</p>
+  <span class="eyebrow">DNS Records</span>
+  <div class="panel">
+    <div class="toolbar">
+      <select id="filterPlugin" onchange="applyFilters()">
+        <option value="">All plugins</option>
+      </select>
+      <select id="filterStatus" onchange="applyFilters()">
+        <option value="">All statuses</option>
+        <option value="NOERROR">NOERROR</option>
+        <option value="NXDOMAIN">NXDOMAIN</option>
+        <option value="MISMATCH">MISMATCH</option>
+        <option value="SERVFAIL">SERVFAIL</option>
+        <option value="checking">Checking</option>
+        <option value="pending">Pending</option>
+      </select>
+      <button id="groupToggle" onclick="toggleGroup()">⊞ Group by hostname</button>
+      <span class="count" id="recordCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr id="headRow">
+            <th data-key="_instance">Instance<span class="arrow"></span></th>
+            <th data-key="container_name">Container<span class="arrow"></span></th>
+            <th data-key="plugin">Plugin<span class="arrow"></span></th>
+            <th data-key="hostname">Hostname<span class="arrow"></span></th>
+            <th data-key="record_type">Type<span class="arrow"></span></th>
+            <th data-key="value">Value<span class="arrow"></span></th>
+            <th data-key="source">Source<span class="arrow"></span></th>
+            <th data-key="last_updated">Last Updated<span class="arrow"></span></th>
+            <th data-key="dns_status">DNS Status<span class="arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty hidden" id="emptyState">
+        <div style="font-size:32px">🔍</div>
+        <p id="emptyMsg">No records found.</p>
+      </div>
     </div>
   </div>
 </main>
