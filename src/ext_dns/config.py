@@ -1,4 +1,5 @@
 import os
+import socket
 
 import yaml
 from pydantic import BaseModel, Field
@@ -23,6 +24,9 @@ class RemoteInstanceConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
+    # Display name for this (local) instance in the UI and cross-instance health.
+    # Defaults to the container hostname when not set.
+    name: str = Field(default_factory=socket.gethostname)
     interval: int = Field(30, ge=5)
     plugins: dict[str, dict] = Field(default_factory=dict)
     web: WebConfig = Field(default_factory=WebConfig)

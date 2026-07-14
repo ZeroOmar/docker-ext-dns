@@ -102,6 +102,7 @@ my-app:
 ## Configuration (`EXT_DNS_CONFIG`)
 
 ```yaml
+name: local             # display name for this instance in the UI (default: container hostname)
 interval: 30            # seconds between reconcile loops (minimum 5)
 change_concurrency: 2   # max record changes applied at once (throttles large diffs)
 change_delay: 0         # optional seconds to pause after each change

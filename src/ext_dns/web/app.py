@@ -79,6 +79,7 @@ def build_app(reconciler, config: AppConfig) -> FastAPI:
         )
 
         return InstanceStatus(
+            name=config.name,
             url="",
             healthy=healthy,
             record_count=len(reconciler.state),
@@ -169,7 +170,7 @@ def build_app(reconciler, config: AppConfig) -> FastAPI:
         peers = await asyncio.gather(*(one(inst) for inst in config.instances))
         return JSONResponse(
             content={
-                "local": {"name": "local", "reachable": True, "health": local.model_dump(mode="json")},
+                "local": {"name": config.name, "reachable": True, "health": local.model_dump(mode="json")},
                 "instances": list(peers),
             }
         )

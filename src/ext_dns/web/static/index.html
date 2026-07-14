@@ -458,9 +458,16 @@ function updateVersionIndicator() {
 
 async function loadInstances() {
   try {
-    const r = await fetchWithTimeout('/api/instances', 3000);
-    if (r.ok) {
-      const remote = await r.json();
+    const [instR, healthR] = await Promise.allSettled([
+      fetchWithTimeout('/api/instances', 3000),
+      fetchWithTimeout('/api/health', 3000),
+    ]);
+    if (healthR.status === 'fulfilled' && healthR.value.ok) {
+      const h = await healthR.value.json();
+      if (h.name) LOCAL.name = h.name;   // configurable local instance name
+    }
+    if (instR.status === 'fulfilled' && instR.value.ok) {
+      const remote = await instR.value.json();
       instances = [LOCAL, ...remote];
       return;
     }
