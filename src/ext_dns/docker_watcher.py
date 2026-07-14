@@ -182,6 +182,27 @@ class DockerWatcher:
             self._client = docker.DockerClient(base_url=self._docker_url)
         return self._client
 
+    async def ping(self) -> tuple[bool, str | None]:
+        """Health probe: is the Docker socket reachable? Uses a dedicated,
+        short-lived client so it never disturbs the long-lived client the event
+        stream and reconciler share. Returns (ok, detail); detail is the error
+        message on failure."""
+        def _probe() -> None:
+            client = docker.DockerClient(base_url=self._docker_url)
+            try:
+                client.ping()
+            finally:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+
+        try:
+            await asyncio.to_thread(_probe)
+            return True, None
+        except Exception as exc:
+            return False, str(exc)
+
     def _discover_traefik_hostname(self, containers: list) -> str | None:
         """Auto-discover the Traefik target hostname from the first Host(`...`)
         rule on a container whose name contains 'traefik'."""

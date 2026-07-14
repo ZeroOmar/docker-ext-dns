@@ -136,9 +136,10 @@ configuration`). Reads remain concurrent.
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/health` | Instance health and summary |
+| `GET /api/health` | Instance health and summary. Checks the reconcile loop (`app`), the Docker socket (`docker`), and each provider's reachability + authentication (`provider_health`). `healthy` is the AND of all three. Always returns HTTP 200 while the app is answering — component failures show in the body, not the status code (this is what the container's `HEALTHCHECK` and the version indicator poll). |
 | `GET /api/records` | All managed records (`?plugin=` and `?dns_status=` filters) |
 | `GET /api/instances` | Instance metadata |
+| `GET /api/instances/health` | Aggregated health of this instance plus every connected peer, fanned out in one call; unreachable peers are reported (`reachable: false`) rather than failing the request |
 | `GET /api/instances/{name}/records` | Records proxied from a configured remote instance |
 | `GET /api/instances/{name}/health` | Health (including version) proxied from a configured remote instance |
 | `POST /api/reconcile` | Trigger an immediate reconcile cycle |

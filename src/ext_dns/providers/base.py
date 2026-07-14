@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from ext_dns.models import DNSRecord
 
@@ -32,9 +33,16 @@ class DNSProvider(ABC):
     async def restart_dns(self) -> None:
         """Called once after a batch of creates/updates/deletes. No-op by default."""
 
-    async def health_check(self) -> bool:
+    async def check_health(self) -> tuple[bool, Optional[str]]:
+        """Probe reachability *and* authentication by attempting to list records
+        (every provider authenticates as part of listing). Returns (ok, detail):
+        detail is None when healthy, otherwise the error message."""
         try:
             await self.list_records()
-            return True
-        except Exception:
-            return False
+            return True, None
+        except Exception as exc:
+            return False, str(exc)
+
+    async def health_check(self) -> bool:
+        ok, _ = await self.check_health()
+        return ok

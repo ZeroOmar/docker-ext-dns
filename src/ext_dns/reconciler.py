@@ -51,6 +51,18 @@ class Reconciler:
     def provider_names(self) -> list[str]:
         return list(self._providers.keys())
 
+    @property
+    def providers(self) -> list[DNSProvider]:
+        return list(self._providers.values())
+
+    @property
+    def watcher(self) -> Optional[DockerWatcher]:
+        return self._watcher
+
+    @property
+    def interval(self) -> int:
+        return self._interval
+
     async def trigger_reconcile(self) -> None:
         self._event.set()
 
