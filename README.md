@@ -5,6 +5,7 @@ DNS record manager for Docker Compose environments, inspired by Kubernetes [exte
 Watches running containers, reads `ext-dns.*` labels, and automatically creates, updates, and deletes DNS records in configured DNS providers. Includes a web UI to inspect record state across one or more instances.
 
 <p align="center"> <img src="images/screenshot-dark.png" alt="Project Screenshot" width="100%"> </p>
+<p align="center"> <img src="images/screenshot-light.png" alt="Project Screenshot" width="100%"> </p>
 
 ## Features
 
