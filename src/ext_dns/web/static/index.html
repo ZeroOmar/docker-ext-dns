@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,10 +9,20 @@
      Near-black canvas, charcoal surface lift, 1px translucent hairlines, one
      type family across the hierarchy (500 body / 600 emphasis / 700 display)
      with tight display + relaxed body line-heights. Vault yellow is the single
-     product-identity accent; hyperlink blue is the only other chromatic voice. */
+     product-identity accent; hyperlink blue is the only other chromatic voice.
+
+     Dark is the brand mode and the default. The light mode below is a mirror of
+     the same token system, not a second palette: canvas becomes inverse-canvas,
+     ink becomes inverse-ink, and the muted/subtle text steps reuse the
+     documented #3b3d45 / #656a76 grays rather than introducing new mid-tones.
+     Vault yellow stays the sole identity accent for filled surfaces; thin
+     chromatic marks (sort arrow, tab underline) switch to amber-200 #bb5a00
+     because yellow hairlines vanish on white. */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
+  :root, :root[data-theme="dark"] {
+    color-scheme: dark;
+
     --canvas: #000000;
     --surface-1: #15181e;
     --surface-2: #1f232b;
@@ -28,10 +38,25 @@
     --accent-blue: #2b89ff;           /* hyperlinks */
     --vault: #ffcf25;                 /* product identity accent */
     --vault-ink: #000000;             /* readable text on Vault yellow */
+    --mark: #ffcf25;                  /* thin accent marks: arrows, underlines */
 
     --success: #00ca8e;
     --warning: #ffcf25;
     --error: #e62b1e;
+
+    --row-hover: rgba(255,255,255,0.02);
+
+    --badge-ok-bg: rgba(0,202,142,0.14);    --badge-ok-fg: #34e2ad;
+    --badge-nx-bg: rgba(230,43,30,0.16);    --badge-nx-fg: #ff6b62;
+    --badge-mm-bg: rgba(187,90,0,0.24);     --badge-mm-fg: #ffab5e;
+    --badge-sv-bg: rgba(255,207,37,0.14);   --badge-sv-fg: #ffcf25;
+    --badge-idle-bg: rgba(178,182,189,0.10);--badge-idle-fg: #b2b6bd;
+
+    --type-a-bg: rgba(43,137,255,0.14);     --type-a-fg: #7db4ff;
+    --type-cname-bg: rgba(167,55,255,0.16); --type-cname-fg: #c6a3ff;
+
+    --chip-bg: #3b3d45;                     --chip-fg: #b2b6bd;
+    --chip-traefik-bg: rgba(20,198,203,0.14); --chip-traefik-fg: #4fd6da;
 
     --r-sm: 6px;
     --r-md: 8px;
@@ -40,6 +65,45 @@
 
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     --mono: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+
+    --canvas: #ffffff;
+    --surface-1: #f4f5f6;
+    --surface-2: #e9ebed;
+    --surface-3: #dcdee1;
+    --hairline: rgba(59,61,69,0.16);
+    --hairline-soft: rgba(59,61,69,0.08);
+
+    --ink: #000000;
+    --ink-muted: #3b3d45;
+    --ink-subtle: #656a76;
+    --text-muted: #656a76;
+
+    --accent-blue: #1361c9;           /* accent-blue darkened for white ground */
+    --vault: #ffcf25;
+    --vault-ink: #000000;
+    --mark: #bb5a00;                  /* amber-200 — yellow marks fade on white */
+
+    --success: #00794f;
+    --warning: #bb5a00;
+    --error: #c11f14;
+
+    --row-hover: rgba(0,0,0,0.03);
+
+    --badge-ok-bg: rgba(0,202,142,0.18);    --badge-ok-fg: #00764d;
+    --badge-nx-bg: rgba(230,43,30,0.12);    --badge-nx-fg: #b81b11;
+    --badge-mm-bg: rgba(187,90,0,0.14);     --badge-mm-fg: #bb5a00;
+    --badge-sv-bg: rgba(255,207,37,0.34);   --badge-sv-fg: #6b5200;
+    --badge-idle-bg: rgba(59,61,69,0.10);   --badge-idle-fg: #656a76;
+
+    --type-a-bg: rgba(43,137,255,0.12);     --type-a-fg: #1258b8;
+    --type-cname-bg: rgba(167,55,255,0.12); --type-cname-fg: #7719c9;
+
+    --chip-bg: rgba(59,61,69,0.10);         --chip-fg: #3b3d45;
+    --chip-traefik-bg: rgba(20,198,203,0.18); --chip-traefik-fg: #0b6f72;
   }
 
   body {
@@ -105,6 +169,13 @@
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
   button:hover { background: var(--surface-3); }
+  /* square-ish icon-only variant (theme toggle) — same 8px corner, no label */
+  button.icon-btn {
+    padding: 8px 11px;
+    font-size: 15px;
+    line-height: 1;
+    min-width: 36px;
+  }
   button.active {
     background: var(--vault);
     border-color: var(--vault);
@@ -136,7 +207,7 @@
     user-select: none;
   }
   .tab:hover { color: var(--ink); }
-  .tab.active { color: var(--ink); border-bottom-color: var(--vault); }
+  .tab.active { color: var(--ink); border-bottom-color: var(--mark); }
   .tab .led {
     width: 7px; height: 7px; border-radius: 50%;
     background: var(--surface-3); display: inline-block; flex-shrink: 0;
@@ -210,7 +281,7 @@
     background: var(--surface-1);
   }
   th:hover { color: var(--ink-muted); }
-  th .arrow { opacity: 0; margin-left: 4px; font-size: 9px; color: var(--vault); }
+  th .arrow { opacity: 0; margin-left: 4px; font-size: 9px; color: var(--mark); }
   th.sorted .arrow { opacity: 1; }
   th.sorted { color: var(--ink); }
 
@@ -223,7 +294,7 @@
   }
 
   tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  tbody tr:hover td { background: var(--row-hover); }
 
   /* Grouped view collapses a hostname's records into one row; when a column
      holds several distinct values they are joined by this muted separator. */
@@ -246,16 +317,16 @@
     width: 6px; height: 6px; border-radius: 50%;
     background: currentColor;
   }
-  .badge.NOERROR  { background: rgba(0,202,142,0.14);  color: #34e2ad; }
-  .badge.NXDOMAIN { background: rgba(230,43,30,0.16);  color: #ff6b62; }
-  .badge.MISMATCH { background: rgba(187,90,0,0.24);   color: #ffab5e; }
-  .badge.SERVFAIL { background: rgba(255,207,37,0.14); color: var(--vault); }
-  .badge.checking { background: rgba(255,207,37,0.12); color: var(--vault); }
-  .badge.pending  { background: rgba(178,182,189,0.10); color: var(--ink-muted); }
+  .badge.NOERROR  { background: var(--badge-ok-bg);   color: var(--badge-ok-fg); }
+  .badge.NXDOMAIN { background: var(--badge-nx-bg);   color: var(--badge-nx-fg); }
+  .badge.MISMATCH { background: var(--badge-mm-bg);   color: var(--badge-mm-fg); }
+  .badge.SERVFAIL { background: var(--badge-sv-bg);   color: var(--badge-sv-fg); }
+  .badge.checking { background: var(--badge-sv-bg);   color: var(--badge-sv-fg); }
+  .badge.pending  { background: var(--badge-idle-bg); color: var(--badge-idle-fg); }
 
   .type-badge {
-    background: rgba(43,137,255,0.14);
-    color: #7db4ff;
+    background: var(--type-a-bg);
+    color: var(--type-a-fg);
     padding: 2px 8px;
     border-radius: var(--r-sm);
     font-size: 11px;
@@ -263,7 +334,7 @@
     letter-spacing: 0.5px;
     font-family: var(--mono);
   }
-  .type-badge.CNAME { background: rgba(167,55,255,0.16); color: #c6a3ff; }
+  .type-badge.CNAME { background: var(--type-cname-bg); color: var(--type-cname-fg); }
 
   .source-badge {
     padding: 2px 8px;
@@ -271,16 +342,16 @@
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.5px;
-    background: var(--surface-3);
-    color: var(--ink-muted);
+    background: var(--chip-bg);
+    color: var(--chip-fg);
   }
-  .source-badge.traefik { background: rgba(20,198,203,0.14); color: #4fd6da; }
+  .source-badge.traefik { background: var(--chip-traefik-bg); color: var(--chip-traefik-fg); }
 
   .mono { font-family: var(--mono); font-size: 12px; }
 
   .instance-label {
-    background: var(--surface-3);
-    color: var(--ink-muted);
+    background: var(--chip-bg);
+    color: var(--chip-fg);
     padding: 2px 8px;
     border-radius: var(--r-sm);
     font-size: 11px;
@@ -307,6 +378,14 @@
     main { padding: 20px 16px; }
   }
 </style>
+<script>
+  // Apply the stored theme before first paint so a light-mode reload never
+  // flashes the dark canvas. Key must match THEME_KEY below.
+  try {
+    const t = localStorage.getItem('ext-dns-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  } catch {}
+</script>
 </head>
 <body>
 
@@ -317,6 +396,7 @@
     <span class="divider"></span>
     <a class="refresh-time" id="appVersion" href="https://github.com/ZeroOmar/docker-ext-dns" target="_blank" rel="noopener"></a>
     <button onclick="refresh()">↻ Refresh</button>
+    <button class="icon-btn" id="themeToggle" onclick="toggleTheme()"></button>
   </div>
 </header>
 
@@ -637,6 +717,25 @@ function sortGroups(groups) {
     dir * cmpGroups(a, b, key) || cmpGroups(a, b, 'hostname'));
 }
 
+// theme -------------------------------------------------------------------
+// Dark is the brand mode and the default; the choice persists per browser.
+const THEME_KEY = 'ext-dns-theme';
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById('themeToggle');
+  const goingLight = theme === 'dark';   // the mode the button switches *to*
+  btn.textContent = goingLight ? '☀' : '☾';
+  btn.title = goingLight ? 'Switch to light mode' : 'Switch to dark mode';
+  btn.setAttribute('aria-label', btn.title);
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  applyTheme(next);
+}
+
 function toggleGroup() {
   grouped = !grouped;
   updateGroupToggle();
@@ -783,6 +882,7 @@ function esc(s) {
 }
 
 setupSorting();
+applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 updateGroupToggle();
 loadVersion();
 refresh();

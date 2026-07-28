@@ -58,7 +58,7 @@ class InstanceStatus(BaseModel):
     record_count: int
     providers: list[str]
     last_reconcile: Optional[datetime]
-    version: str = "0.12.0"
+    version: str = "0.13.0"
     # Per-subsystem breakdown of the overall `healthy` flag.
     app: ComponentHealth = Field(default_factory=lambda: ComponentHealth(ok=True))
     docker: ComponentHealth = Field(default_factory=lambda: ComponentHealth(ok=True))
